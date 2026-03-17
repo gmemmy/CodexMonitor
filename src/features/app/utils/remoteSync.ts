@@ -1,6 +1,7 @@
 import type {
   RemoteSyncFailure,
   RemoteSyncFailurePhase,
+  RemoteThreadConnectionState,
   ThreadRefreshResult,
 } from "@/types";
 
@@ -29,6 +30,49 @@ export function buildRemoteSyncFailure(
     at: Date.now(),
     workspaceId: workspaceId ?? null,
     threadId: threadId ?? null,
+  };
+}
+
+function isWorkspaceFailurePhase(
+  phase: RemoteSyncFailurePhase | null | undefined,
+): boolean {
+  return phase === "workspace_refresh" || phase === "workspace_connect";
+}
+
+type ResolveRemoteSyncBannerOptions = {
+  connectionState: RemoteThreadConnectionState;
+  activeThreadId?: string | null;
+  failure?: RemoteSyncFailure | null;
+};
+
+export function resolveRemoteSyncBannerContent({
+  connectionState,
+  activeThreadId = null,
+  failure = null,
+}: ResolveRemoteSyncBannerOptions): {
+  state: "stale" | "disconnected";
+  title: string;
+  message: string;
+} {
+  const isDisconnected = connectionState === "disconnected";
+  const showWorkspaceTitle =
+    isWorkspaceFailurePhase(failure?.phase) || (!activeThreadId && !isDisconnected);
+  const title = isDisconnected
+    ? "Remote backend disconnected"
+    : showWorkspaceTitle
+      ? "Remote workspace data is stale"
+      : "Remote thread data is stale";
+  const trimmedFailureMessage = failure?.message?.trim() ?? "";
+  const message = trimmedFailureMessage
+    ? `Last sync failed: ${trimmedFailureMessage}`
+    : isDisconnected
+      ? "Reconnect to restore live data from the remote backend."
+      : "The latest remote sync failed, so this view may be stale.";
+
+  return {
+    state: isDisconnected ? "disconnected" : "stale",
+    title,
+    message,
   };
 }
 

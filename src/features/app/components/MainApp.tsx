@@ -85,7 +85,10 @@ import {
 } from "@threads/utils/threadCodexParamsSeed";
 import { subscribeTrayOpenThread } from "@services/events";
 import { setWorkspaceRuntimeCodexArgs } from "@services/tauri";
-import { normalizeThreadRefreshResult } from "@app/utils/remoteSync";
+import {
+  normalizeThreadRefreshResult,
+  resolveRemoteSyncBannerContent,
+} from "@app/utils/remoteSync";
 
 const SettingsView = lazy(() =>
   import("@settings/components/SettingsView").then((module) => ({
@@ -1436,24 +1439,17 @@ export default function MainApp() {
     ) {
       return null;
     }
-
-    const isDisconnected = remoteConnectionStateForShell === "disconnected";
-    const title = isDisconnected
-      ? "Remote backend disconnected"
-      : activeThreadId
-        ? "Remote thread data is stale"
-        : "Remote workspace data is stale";
-    const message = remoteSyncFailure?.message?.trim()
-      ? `Last sync failed: ${remoteSyncFailure.message}`
-      : isDisconnected
-        ? "Reconnect to restore live data from the remote backend."
-        : "The latest remote sync failed, so this view may be stale.";
+    const banner = resolveRemoteSyncBannerContent({
+      connectionState: remoteConnectionStateForShell,
+      activeThreadId,
+      failure: remoteSyncFailure,
+    });
 
     return (
       <RemoteSyncBanner
-        state={isDisconnected ? "disconnected" : "stale"}
-        title={title}
-        message={message}
+        state={banner.state}
+        title={banner.title}
+        message={banner.message}
         actionBusy={remoteReconnectLoading}
         onAction={handleReconnectRemote}
       />
