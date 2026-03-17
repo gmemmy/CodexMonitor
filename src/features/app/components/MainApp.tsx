@@ -86,6 +86,7 @@ import {
 import { subscribeTrayOpenThread } from "@services/events";
 import { setWorkspaceRuntimeCodexArgs } from "@services/tauri";
 import {
+  applyWorkspaceConnectionOverride,
   normalizeThreadRefreshResult,
   resolveRemoteSyncBannerContent,
 } from "@app/utils/remoteSync";
@@ -632,32 +633,36 @@ export default function MainApp() {
     setRemoteReconnectLoading(true);
     void (async () => {
       const refreshedWorkspaces = await refreshWorkspaces();
-      const refreshedWorkspace =
+      let refreshedWorkspace =
         refreshedWorkspaces?.find((workspace) => workspace.id === activeWorkspace.id) ??
         activeWorkspace;
 
       if (activeThreadId) {
-        let workspaceConnectedHint = refreshedWorkspace.connected;
         if (!refreshedWorkspace.connected) {
           await connectWorkspace(refreshedWorkspace);
-          workspaceConnectedHint = true;
+          refreshedWorkspace = applyWorkspaceConnectionOverride(
+            refreshedWorkspace,
+            true,
+          );
         }
         await reconnectLive(refreshedWorkspace.id, activeThreadId, {
           runResume: true,
           reason: "manual",
-          workspaceConnectedHint,
+          workspaceConnectedHint: refreshedWorkspace.connected,
         });
         return;
       }
 
       if (!refreshedWorkspace.connected) {
         await connectWorkspace(refreshedWorkspace);
+        refreshedWorkspace = applyWorkspaceConnectionOverride(
+          refreshedWorkspace,
+          true,
+        );
       }
 
-      const liveWorkspace =
-        workspacesById.get(refreshedWorkspace.id) ?? refreshedWorkspace;
-      if (liveWorkspace.connected) {
-        await listThreadsForWorkspaces([liveWorkspace], { preserveState: true });
+      if (refreshedWorkspace.connected) {
+        await listThreadsForWorkspaces([refreshedWorkspace], { preserveState: true });
       }
     })().finally(() => {
       setRemoteReconnectLoading(false);
@@ -671,7 +676,6 @@ export default function MainApp() {
     reconnectLive,
     refreshWorkspaces,
     remoteReconnectLoading,
-    workspacesById,
   ]);
 
   const handleMobileThreadRefresh = useCallback(() => {

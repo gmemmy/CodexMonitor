@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveRemoteSyncBannerContent } from "./remoteSync";
+import { applyWorkspaceConnectionOverride, resolveRemoteSyncBannerContent } from "./remoteSync";
 
 describe("resolveRemoteSyncBannerContent", () => {
   it("keeps workspace refresh failures labeled as workspace stale when a thread is open", () => {
@@ -54,6 +54,24 @@ describe("resolveRemoteSyncBannerContent", () => {
       state: "disconnected",
       title: "Remote backend disconnected",
       message: "Reconnect to restore live data from the remote backend.",
+    });
+  });
+
+  it("can force a workspace entry to connected after a successful reconnect", () => {
+    expect(
+      applyWorkspaceConnectionOverride(
+        {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: false,
+          settings: { sidebarCollapsed: false },
+        },
+        true,
+      ),
+    ).toMatchObject({
+      id: "ws-1",
+      connected: true,
     });
   });
 });

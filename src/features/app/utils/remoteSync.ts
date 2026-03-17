@@ -3,6 +3,7 @@ import type {
   RemoteSyncFailurePhase,
   RemoteThreadConnectionState,
   ThreadRefreshResult,
+  WorkspaceInfo,
 } from "@/types";
 
 export function formatRemoteSyncErrorMessage(
@@ -73,6 +74,19 @@ export function resolveRemoteSyncBannerContent({
     state: isDisconnected ? "disconnected" : "stale",
     title,
     message,
+  };
+}
+
+export function applyWorkspaceConnectionOverride(
+  workspace: WorkspaceInfo,
+  connected: boolean,
+): WorkspaceInfo {
+  if (workspace.connected === connected) {
+    return workspace;
+  }
+  return {
+    ...workspace,
+    connected,
   };
 }
 
