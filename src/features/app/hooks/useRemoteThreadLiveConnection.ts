@@ -39,6 +39,12 @@ type UseRemoteThreadLiveConnectionOptions = {
   activeThreadIsProcessing?: boolean;
   refreshThread: (workspaceId: string, threadId: string) => Promise<unknown> | unknown;
   reconnectWorkspace?: (workspace: WorkspaceInfo) => Promise<unknown> | unknown;
+  bumpWorkspaceFreshnessBoundary?: (workspaceId: string | null | undefined) => void;
+  markThreadFreshAtCurrentBoundary?: (workspaceId: string, threadId: string) => void;
+  shouldRefreshForFreshnessBoundary?: (
+    workspaceId: string,
+    threadId: string,
+  ) => boolean;
 };
 
 function keyForThread(workspaceId: string, threadId: string) {
@@ -97,6 +103,9 @@ export function useRemoteThreadLiveConnection({
   activeThreadIsProcessing = false,
   refreshThread,
   reconnectWorkspace,
+  bumpWorkspaceFreshnessBoundary: onBumpWorkspaceFreshnessBoundary,
+  markThreadFreshAtCurrentBoundary: onMarkThreadFreshAtCurrentBoundary,
+  shouldRefreshForFreshnessBoundary: onShouldRefreshForFreshnessBoundary,
 }: UseRemoteThreadLiveConnectionOptions) {
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceConnected = activeWorkspace?.connected ?? false;
@@ -120,12 +129,18 @@ export function useRemoteThreadLiveConnection({
   const activeThreadIsProcessingRef = useRef(activeThreadIsProcessing);
   const refreshThreadRef = useRef(refreshThread);
   const reconnectWorkspaceRef = useRef(reconnectWorkspace);
+  const bumpWorkspaceFreshnessBoundaryRef = useRef(onBumpWorkspaceFreshnessBoundary);
+  const markThreadFreshAtCurrentBoundaryRef = useRef(onMarkThreadFreshAtCurrentBoundary);
+  const shouldRefreshForFreshnessBoundaryRef = useRef(
+    onShouldRefreshForFreshnessBoundary,
+  );
   const connectionStateRef = useRef(connectionState);
   const activeSubscriptionKeyRef = useRef<string | null>(null);
   const desiredSubscriptionKeyRef = useRef<string | null>(null);
   const ignoreDetachedEventsUntilRef = useRef<Map<string, number>>(new Map());
   const workspaceFreshnessBoundaryRef = useRef<Record<string, number>>({});
   const threadFreshnessBoundaryRef = useRef<Record<string, number>>({});
+  const initializedWorkspaceFreshnessRef = useRef<Set<string>>(new Set());
   const previousWorkspaceConnectionRef = useRef<{
     workspaceId: string | null;
     connected: boolean;
@@ -149,6 +164,9 @@ export function useRemoteThreadLiveConnection({
     activeThreadIsProcessingRef.current = activeThreadIsProcessing;
     refreshThreadRef.current = refreshThread;
     reconnectWorkspaceRef.current = reconnectWorkspace;
+    bumpWorkspaceFreshnessBoundaryRef.current = onBumpWorkspaceFreshnessBoundary;
+    markThreadFreshAtCurrentBoundaryRef.current = onMarkThreadFreshAtCurrentBoundary;
+    shouldRefreshForFreshnessBoundaryRef.current = onShouldRefreshForFreshnessBoundary;
   }, [
     backendMode,
     suspendRemoteSync,
@@ -158,6 +176,9 @@ export function useRemoteThreadLiveConnection({
     activeThreadIsProcessing,
     refreshThread,
     reconnectWorkspace,
+    onBumpWorkspaceFreshnessBoundary,
+    onMarkThreadFreshAtCurrentBoundary,
+    onShouldRefreshForFreshnessBoundary,
   ]);
 
   useEffect(() => {
@@ -208,8 +229,10 @@ export function useRemoteThreadLiveConnection({
     if (!workspaceId) {
       return;
     }
+    initializedWorkspaceFreshnessRef.current.add(workspaceId);
     workspaceFreshnessBoundaryRef.current[workspaceId] =
       (workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0) + 1;
+    bumpWorkspaceFreshnessBoundaryRef.current?.(workspaceId);
   }, []);
 
   const markThreadFreshAtCurrentBoundary = useCallback(
@@ -219,6 +242,7 @@ export function useRemoteThreadLiveConnection({
       }
       threadFreshnessBoundaryRef.current[keyForThread(workspaceId, threadId)] =
         workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0;
+      markThreadFreshAtCurrentBoundaryRef.current?.(workspaceId, threadId);
     },
     [],
   );
@@ -227,6 +251,11 @@ export function useRemoteThreadLiveConnection({
     (workspaceId: string, threadId: string) => {
       if (!workspaceId || !threadId) {
         return false;
+      }
+      const sharedDecision =
+        shouldRefreshForFreshnessBoundaryRef.current?.(workspaceId, threadId);
+      if (typeof sharedDecision === "boolean") {
+        return sharedDecision;
       }
       const boundary = workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0;
       if (boundary <= 0) {
@@ -288,6 +317,17 @@ export function useRemoteThreadLiveConnection({
   useEffect(() => {
     clearSyncFailure();
   }, [activeWorkspaceId, activeThreadId, backendMode, suspendRemoteSync, clearSyncFailure]);
+
+  useEffect(() => {
+    if (backendMode !== "remote") {
+      initializedWorkspaceFreshnessRef.current.clear();
+      return;
+    }
+    if (!activeWorkspaceId || initializedWorkspaceFreshnessRef.current.has(activeWorkspaceId)) {
+      return;
+    }
+    bumpWorkspaceFreshnessBoundary(activeWorkspaceId);
+  }, [activeWorkspaceId, backendMode, bumpWorkspaceFreshnessBoundary]);
 
   useEffect(() => {
     const previous = previousWorkspaceConnectionRef.current;

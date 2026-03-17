@@ -142,6 +142,11 @@ type UseThreadActionsOptions = {
     threadId: string,
     metadata: { modelId: string | null; effort: string | null },
   ) => void;
+  markThreadFreshAtCurrentBoundary?: (workspaceId: string, threadId: string) => void;
+  shouldRefreshForFreshnessBoundary?: (
+    workspaceId: string,
+    threadId: string,
+  ) => boolean;
 };
 
 export function useThreadActions({
@@ -163,6 +168,8 @@ export function useThreadActions({
   updateThreadParent,
   onSubagentThreadDetected,
   onThreadCodexMetadataDetected,
+  markThreadFreshAtCurrentBoundary,
+  shouldRefreshForFreshnessBoundary,
 }: UseThreadActionsOptions) {
   const resumeInFlightByThreadRef = useRef<Record<string, number>>({});
   const threadStatusByIdRef = useRef(threadStatusById);
@@ -228,11 +235,18 @@ export function useThreadActions({
       if (!threadId) {
         return null;
       }
-      if (!force && loadedThreadsRef.current[threadId]) {
+      const requiresFreshResume =
+        shouldRefreshForFreshnessBoundary?.(workspaceId, threadId) ?? false;
+      if (!force && loadedThreadsRef.current[threadId] && !requiresFreshResume) {
         return threadId;
       }
       const status = threadStatusByIdRef.current[threadId];
-      if (status?.isProcessing && loadedThreadsRef.current[threadId] && !force) {
+      if (
+        status?.isProcessing &&
+        loadedThreadsRef.current[threadId] &&
+        !force &&
+        !requiresFreshResume
+      ) {
         onDebug?.({
           id: `${Date.now()}-client-thread-resume-skipped`,
           timestamp: Date.now(),
@@ -288,7 +302,9 @@ export function useThreadActions({
           const items = buildItemsFromThread(thread);
           const localItems = itemsByThread[threadId] ?? [];
           const shouldReplace =
-            replaceLocal || replaceOnResumeRef.current[threadId] === true;
+            replaceLocal ||
+            replaceOnResumeRef.current[threadId] === true ||
+            requiresFreshResume;
           if (shouldReplace) {
             replaceOnResumeRef.current[threadId] = false;
           }
@@ -377,6 +393,7 @@ export function useThreadActions({
               timestamp: getThreadTimestamp(thread),
             });
           }
+          markThreadFreshAtCurrentBoundary?.(workspaceId, threadId);
         }
         loadedThreadsRef.current[threadId] = true;
         return threadId;
@@ -411,7 +428,9 @@ export function useThreadActions({
       onDebug,
       onSubagentThreadDetected,
       onThreadCodexMetadataDetected,
+      markThreadFreshAtCurrentBoundary,
       replaceOnResumeRef,
+      shouldRefreshForFreshnessBoundary,
       updateThreadParent,
     ],
   );

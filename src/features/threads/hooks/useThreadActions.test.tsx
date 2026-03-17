@@ -261,6 +261,67 @@ describe("useThreadActions", () => {
     expect(resumeThread).toHaveBeenCalledWith("ws-1", "thread-1");
   });
 
+  it("refreshes stale loaded threads when the freshness boundary requires it", async () => {
+    const localItem: ConversationItem = {
+      id: "local-assistant-1",
+      kind: "message",
+      role: "assistant",
+      text: "Local snapshot",
+    };
+    const remoteItem: ConversationItem = {
+      id: "remote-assistant-1",
+      kind: "message",
+      role: "assistant",
+      text: "Fresh remote state",
+    };
+    const markThreadFreshAtCurrentBoundary = vi.fn();
+    const shouldRefreshForFreshnessBoundary = vi.fn().mockReturnValue(true);
+
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-1",
+          preview: "Fresh remote state",
+          updated_at: 555,
+          turns: [],
+        },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([remoteItem]);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+    vi.mocked(previewThreadName).mockReturnValue("Fresh remote state");
+    vi.mocked(getThreadTimestamp).mockReturnValue(777);
+
+    const { result, dispatch } = renderActions({
+      loadedThreadsRef: { current: { "thread-1": true } },
+      itemsByThread: { "thread-1": [localItem] },
+      threadStatusById: {
+        "thread-1": {
+          isProcessing: true,
+          hasUnread: false,
+          isReviewing: false,
+          processingStartedAt: 123,
+          lastDurationMs: null,
+        },
+      },
+      markThreadFreshAtCurrentBoundary,
+      shouldRefreshForFreshnessBoundary,
+    });
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-1");
+    });
+
+    expect(shouldRefreshForFreshnessBoundary).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(resumeThread).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setThreadItems",
+      threadId: "thread-1",
+      items: [remoteItem],
+    });
+    expect(markThreadFreshAtCurrentBoundary).toHaveBeenCalledWith("ws-1", "thread-1");
+  });
+
   it("resumes thread, sets items, status, name, and last message", async () => {
     const assistantItem: ConversationItem = {
       id: "assistant-1",
