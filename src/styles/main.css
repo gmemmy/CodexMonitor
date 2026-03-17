@@ -400,6 +400,37 @@
   backdrop-filter: none;
 }
 
+.shell-version-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-control);
+  color: var(--text-subtle);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.app-shell-version {
+  position: absolute;
+  top: 10px;
+  right: calc(20px + var(--window-caption-width, 0px) + var(--window-caption-gap, 0px));
+  z-index: 5;
+  pointer-events: none;
+}
+
+.app.layout-compact .app-shell-version {
+  display: none;
+}
+
 
 .main-topbar-left {
   display: flex;

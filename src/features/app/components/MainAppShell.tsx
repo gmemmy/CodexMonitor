@@ -2,6 +2,7 @@ import { lazy, Suspense, type CSSProperties, type ComponentProps, type RefObject
 import { AppLayout } from "@app/components/AppLayout";
 import { AppModals } from "@app/components/AppModals";
 import type { AppModalsProps } from "@app/components/AppModals";
+import { ShellVersionBadge } from "@app/components/ShellVersionBadge";
 import {
   TitlebarExpandControls,
 } from "@/features/layout/components/SidebarToggleControls";
@@ -54,6 +55,9 @@ export function MainAppShell({
   return (
     <div className={`${appClassName}${isResizing ? " is-resizing" : ""}`} style={appStyle} ref={appRef}>
       <div className="drag-strip" id="titlebar" />
+      <div className="app-shell-version">
+        <ShellVersionBadge />
+      </div>
       <TitlebarExpandControls {...sidebarToggleProps} />
       <WindowCaptionControls />
       {shouldLoadGitHubPanelData ? (
