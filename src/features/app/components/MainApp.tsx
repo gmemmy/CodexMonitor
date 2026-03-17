@@ -637,9 +637,15 @@ export default function MainApp() {
         activeWorkspace;
 
       if (activeThreadId) {
+        let workspaceConnectedHint = refreshedWorkspace.connected;
+        if (!refreshedWorkspace.connected) {
+          await connectWorkspace(refreshedWorkspace);
+          workspaceConnectedHint = true;
+        }
         await reconnectLive(refreshedWorkspace.id, activeThreadId, {
           runResume: true,
           reason: "manual",
+          workspaceConnectedHint,
         });
         return;
       }

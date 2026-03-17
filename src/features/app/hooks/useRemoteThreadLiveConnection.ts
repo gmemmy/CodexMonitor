@@ -21,6 +21,7 @@ const SELF_DETACH_IGNORE_WINDOW_MS = 10_000;
 
 type ReconnectOptions = {
   runResume?: boolean;
+  workspaceConnectedHint?: boolean;
   reason?:
     | "thread-switch"
     | "focus"
@@ -269,9 +270,11 @@ export function useRemoteThreadLiveConnection({
         const sequence = reconnectSequenceRef.current + 1;
         reconnectSequenceRef.current = sequence;
         const workspaceAtStart = activeWorkspaceRef.current;
+        const workspaceConnectedAtStart =
+          options?.workspaceConnectedHint ?? Boolean(workspaceAtStart?.connected);
         const shouldResume = options?.runResume !== false;
         const shouldKeepLiveState = options?.reason === "thread-switch";
-        if (!workspaceAtStart?.connected) {
+        if (!workspaceConnectedAtStart) {
           setState("disconnected");
         } else if (shouldResume || !shouldKeepLiveState) {
           setState("polling");
@@ -282,9 +285,13 @@ export function useRemoteThreadLiveConnection({
         try {
           desiredSubscriptionKeyRef.current = targetKey;
           const workspaceEntry = activeWorkspaceRef.current;
+          const needsWorkspaceReconnect =
+            options?.workspaceConnectedHint === false ||
+            (typeof options?.workspaceConnectedHint === "undefined" &&
+              workspaceEntry?.connected === false);
           if (
             workspaceEntry &&
-            !workspaceEntry.connected &&
+            needsWorkspaceReconnect &&
             reconnectWorkspaceRef.current &&
             workspaceEntry.id === workspaceId
           ) {
