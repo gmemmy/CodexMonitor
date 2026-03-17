@@ -4,6 +4,7 @@ import type {
   AppSettings,
   CodexDoctorResult,
   CodexUpdateResult,
+  DesktopMobileHandoffPayloadV1,
   DictationModelStatus,
   WorkspaceSettings,
   WorkspaceGroup,
@@ -59,6 +60,7 @@ export type SettingsViewProps = {
   onTestNotificationSound: () => void;
   onTestSystemNotification: () => void;
   onMobileConnectSuccess?: () => Promise<void> | void;
+  onCreateDesktopMobileHandoffPayload?: () => DesktopMobileHandoffPayloadV1;
   onSelectSavedRemoteBackend?: (id: string) => Promise<string>;
   dictationModelStatus?: DictationModelStatus | null;
   onDownloadDictationModel?: () => void;
@@ -92,6 +94,7 @@ export function SettingsView({
   onTestNotificationSound,
   onTestSystemNotification,
   onMobileConnectSuccess,
+  onCreateDesktopMobileHandoffPayload,
   onSelectSavedRemoteBackend,
   dictationModelStatus,
   onDownloadDictationModel,
@@ -131,6 +134,7 @@ export function SettingsView({
     onDeleteWorkspaceGroup,
     onAssignWorkspaceGroup,
     onMobileConnectSuccess,
+    onCreateDesktopMobileHandoffPayload,
     onSelectSavedRemoteBackend,
     dictationModelStatus,
     onDownloadDictationModel,

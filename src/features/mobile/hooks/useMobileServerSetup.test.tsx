@@ -79,6 +79,7 @@ function useMobileServerSetupHarness(
   initialSettings: AppSettings,
   queueSaveSettingsSpy: ReturnType<typeof vi.fn>,
   refreshWorkspaces: ReturnType<typeof vi.fn>,
+  applyDesktopMobileHandoffPayload?: ReturnType<typeof vi.fn>,
   appSettingsLoading = false,
 ) {
   const [settings, setSettings] = useState(initialSettings);
@@ -98,6 +99,7 @@ function useMobileServerSetupHarness(
       appSettingsLoading,
       queueSaveSettings,
       refreshWorkspaces,
+      applyDesktopMobileHandoffPayload,
     }),
   };
 }
@@ -134,6 +136,7 @@ describe("useMobileServerSetup", () => {
         buildSettings(),
         queueSaveSettings,
         refreshWorkspaces,
+        undefined,
       ),
     );
 
@@ -180,6 +183,7 @@ describe("useMobileServerSetup", () => {
         connectedSettings,
         queueSaveSettings,
         refreshWorkspaces,
+        undefined,
       ),
     );
 
@@ -210,6 +214,7 @@ describe("useMobileServerSetup", () => {
         initialSettings,
         queueSaveSettings,
         refreshWorkspaces,
+        undefined,
       ),
     );
 
@@ -228,5 +233,49 @@ describe("useMobileServerSetup", () => {
     expect(result.current.mobileSetupWizardProps.statusMessage).toBe(
       'active remote offline Automatic restore to "Good Remote" failed. Select a saved remote or update host/token.',
     );
+  });
+
+  it("applies a desktop handoff payload through the mobile setup wizard", async () => {
+    listWorkspacesMock.mockRejectedValue(new Error("connect manually"));
+
+    const queueSaveSettings = vi.fn(async (next: AppSettings) => next);
+    const refreshWorkspaces = vi.fn().mockResolvedValue(undefined);
+    const applyDesktopMobileHandoffPayload = vi.fn().mockResolvedValue({
+      ok: true,
+      message: 'Connected to "Office Mac" and resumed "Fix remote handoff flow" in "codex-monitor".',
+    });
+
+    const { result } = renderHook(() =>
+      useMobileServerSetupHarness(
+        buildSettings({
+          remoteBackendHost: "",
+          remoteBackendToken: null,
+          remoteBackends: [],
+          activeRemoteBackendId: null,
+        }),
+        queueSaveSettings,
+        refreshWorkspaces,
+        applyDesktopMobileHandoffPayload,
+      ),
+    );
+
+    await waitFor(() => expect(result.current.showMobileSetupWizard).toBe(true));
+
+    act(() => {
+      result.current.mobileSetupWizardProps.onHandoffPayloadChange('{"version":1}');
+    });
+
+    await act(async () => {
+      result.current.mobileSetupWizardProps.onApplyHandoff();
+    });
+
+    await waitFor(() =>
+      expect(applyDesktopMobileHandoffPayload).toHaveBeenCalledWith('{"version":1}'),
+    );
+    expect(result.current.mobileSetupWizardProps.statusError).toBe(false);
+    expect(result.current.mobileSetupWizardProps.statusMessage).toBe(
+      'Connected to "Office Mac" and resumed "Fix remote handoff flow" in "codex-monitor".',
+    );
+    expect(result.current.showMobileSetupWizard).toBe(false);
   });
 });

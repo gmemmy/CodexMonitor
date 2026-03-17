@@ -148,9 +148,15 @@ describe("useRemoteBackendHandoff", () => {
 
     const setAppSettings = vi.fn();
     const connectWorkspace = vi.fn().mockResolvedValue(undefined);
+    const setActiveThreadId = vi.fn();
     const replaceWorkspaceState = vi.fn();
     const resetThreadState = vi.fn();
-    const listThreadsForWorkspace = vi.fn().mockResolvedValue(undefined);
+    const listThreadsForWorkspace = vi.fn().mockResolvedValue([]);
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-1",
+      errorMessage: null,
+    });
     const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
     const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
 
@@ -159,10 +165,13 @@ describe("useRemoteBackendHandoff", () => {
         appSettings: baseSettings,
         setAppSettings,
         activeWorkspace,
+        activeThreadId: null,
         connectWorkspace,
+        setActiveThreadId,
         replaceWorkspaceState,
         resetThreadState,
         listThreadsForWorkspace,
+        refreshThread,
         refreshAccountInfo,
         refreshAccountRateLimits,
       }),
@@ -218,9 +227,15 @@ describe("useRemoteBackendHandoff", () => {
 
     const setAppSettings = vi.fn();
     const connectWorkspace = vi.fn().mockResolvedValue(undefined);
+    const setActiveThreadId = vi.fn();
     const replaceWorkspaceState = vi.fn();
     const resetThreadState = vi.fn();
-    const listThreadsForWorkspace = vi.fn().mockResolvedValue(undefined);
+    const listThreadsForWorkspace = vi.fn().mockResolvedValue([]);
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-1",
+      errorMessage: null,
+    });
     const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
     const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
 
@@ -229,10 +244,13 @@ describe("useRemoteBackendHandoff", () => {
         appSettings: baseSettings,
         setAppSettings,
         activeWorkspace,
+        activeThreadId: null,
         connectWorkspace,
+        setActiveThreadId,
         replaceWorkspaceState,
         resetThreadState,
         listThreadsForWorkspace,
+        refreshThread,
         refreshAccountInfo,
         refreshAccountRateLimits,
       }),
@@ -289,9 +307,15 @@ describe("useRemoteBackendHandoff", () => {
     listWorkspacesMock.mockResolvedValue([preferredWorkspace, fallbackWorkspace]);
 
     const connectWorkspace = vi.fn().mockRejectedValue(new Error("workspace reconnect failed"));
+    const setActiveThreadId = vi.fn();
     const replaceWorkspaceState = vi.fn();
     const resetThreadState = vi.fn();
-    const listThreadsForWorkspace = vi.fn().mockResolvedValue(undefined);
+    const listThreadsForWorkspace = vi.fn().mockResolvedValue([]);
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-1",
+      errorMessage: null,
+    });
     const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
     const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
 
@@ -300,10 +324,13 @@ describe("useRemoteBackendHandoff", () => {
         appSettings: baseSettings,
         setAppSettings: vi.fn(),
         activeWorkspace,
+        activeThreadId: null,
         connectWorkspace,
+        setActiveThreadId,
         replaceWorkspaceState,
         resetThreadState,
         listThreadsForWorkspace,
+        refreshThread,
         refreshAccountInfo,
         refreshAccountRateLimits,
       }),
@@ -320,5 +347,297 @@ describe("useRemoteBackendHandoff", () => {
     expect(listThreadsForWorkspace).toHaveBeenCalledWith(fallbackWorkspace);
     expect(refreshAccountInfo).toHaveBeenCalledWith("ws-office-2");
     expect(refreshAccountRateLimits).toHaveBeenCalledWith("ws-office-2");
+  });
+
+  it("captures a v1 desktop/mobile handoff payload from the active remote context", () => {
+    const { result } = renderHook(() =>
+      useRemoteBackendHandoff({
+        appSettings: baseSettings,
+        setAppSettings: vi.fn(),
+        activeWorkspace,
+        activeThreadId: "thread-1",
+        activeThreadTitle: "Fix remote handoff flow",
+        connectWorkspace: vi.fn().mockResolvedValue(undefined),
+        setActiveThreadId: vi.fn(),
+        replaceWorkspaceState: vi.fn(),
+        resetThreadState: vi.fn(),
+        listThreadsForWorkspace: vi.fn().mockResolvedValue([]),
+        refreshThread: vi.fn().mockResolvedValue({
+          ok: true,
+          threadId: "thread-1",
+          errorMessage: null,
+        }),
+      }),
+    );
+
+    const payload = result.current.captureDesktopMobileHandoffPayload();
+
+    expect(payload).toMatchObject({
+      version: 1,
+      remote: {
+        provider: "tcp",
+        host: "home.tailnet.ts.net:4732",
+        token: "token-home",
+        name: "Home Mac",
+      },
+      workspace: {
+        id: "ws-home",
+        path: "/Users/me/dev/codex-monitor",
+        name: "codex-monitor",
+      },
+      thread: {
+        id: "thread-1",
+        title: "Fix remote handoff flow",
+      },
+    });
+    expect(typeof payload.issuedAtMs).toBe("number");
+  });
+
+  it("applies a handoff payload, reconnects the workspace, and forces a fresh thread restore before selection", async () => {
+    const remoteWorkspace: WorkspaceInfo = {
+      id: "ws-office",
+      name: "codex-monitor",
+      path: "/Users/me/dev/codex-monitor",
+      connected: false,
+      settings: { sidebarCollapsed: false },
+    };
+    updateAppSettingsMock.mockResolvedValue(baseSettings);
+    listWorkspacesMock.mockResolvedValue([remoteWorkspace]);
+
+    const setAppSettings = vi.fn();
+    const connectWorkspace = vi.fn().mockResolvedValue(undefined);
+    const setActiveThreadId = vi.fn();
+    const replaceWorkspaceState = vi.fn();
+    const resetThreadState = vi.fn();
+    const listThreadsForWorkspace = vi.fn().mockResolvedValue([
+      {
+        id: "thread-42",
+        name: "Fix remote handoff flow",
+        updatedAt: 1,
+      },
+    ]);
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-42",
+      errorMessage: null,
+    });
+    const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useRemoteBackendHandoff({
+        appSettings: baseSettings,
+        setAppSettings,
+        activeWorkspace,
+        activeThreadId: null,
+        connectWorkspace,
+        setActiveThreadId,
+        replaceWorkspaceState,
+        resetThreadState,
+        listThreadsForWorkspace,
+        refreshThread,
+        refreshAccountInfo,
+        refreshAccountRateLimits,
+      }),
+    );
+
+    let applyResult: Awaited<
+      ReturnType<typeof result.current.applyDesktopMobileHandoffPayload>
+    > | null = null;
+    await act(async () => {
+      applyResult = await result.current.applyDesktopMobileHandoffPayload(
+        JSON.stringify({
+          version: 1,
+          issuedAtMs: 1773705600000,
+          remote: {
+            provider: "tcp",
+            host: "office.tailnet.ts.net:4732",
+            token: "token-office",
+            name: "Office Mac",
+          },
+          workspace: {
+            id: "ws-office",
+            path: "/Users/me/dev/codex-monitor",
+            name: "codex-monitor",
+          },
+          thread: {
+            id: "thread-42",
+            title: "Fix remote handoff flow",
+          },
+        }),
+      );
+    });
+
+    expect(applyResult).toEqual({
+      ok: true,
+      message:
+        'Connected to "Office Mac" and resumed "Fix remote handoff flow" in "codex-monitor".',
+    });
+    expect(connectWorkspace).toHaveBeenCalledWith(remoteWorkspace);
+    expect(resetThreadState).toHaveBeenCalledTimes(1);
+    expect(replaceWorkspaceState).toHaveBeenCalledWith(
+      [{ ...remoteWorkspace, connected: true }],
+      { activeWorkspaceId: "ws-office" },
+    );
+    expect(listThreadsForWorkspace).toHaveBeenCalledWith({
+      ...remoteWorkspace,
+      connected: true,
+    });
+    expect(refreshThread).toHaveBeenCalledWith("ws-office", "thread-42");
+    expect(setActiveThreadId).toHaveBeenCalledWith("thread-42", "ws-office");
+    expect(refreshThread.mock.invocationCallOrder[0]).toBeLessThan(
+      setActiveThreadId.mock.invocationCallOrder[0],
+    );
+    expect(refreshAccountInfo).toHaveBeenCalledWith("ws-office");
+    expect(refreshAccountRateLimits).toHaveBeenCalledWith("ws-office");
+  });
+
+  it("lands in a safe state with a clear error when the handoff workspace is missing", async () => {
+    const remoteWorkspace: WorkspaceInfo = {
+      id: "ws-other",
+      name: "other",
+      path: "/Users/me/dev/other",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+    updateAppSettingsMock.mockResolvedValue(baseSettings);
+    listWorkspacesMock.mockResolvedValue([remoteWorkspace]);
+
+    const replaceWorkspaceState = vi.fn();
+    const listThreadsForWorkspace = vi.fn().mockResolvedValue([]);
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: false,
+      threadId: null,
+      errorMessage: "missing",
+    });
+
+    const { result } = renderHook(() =>
+      useRemoteBackendHandoff({
+        appSettings: baseSettings,
+        setAppSettings: vi.fn(),
+        activeWorkspace,
+        activeThreadId: null,
+        connectWorkspace: vi.fn().mockResolvedValue(undefined),
+        setActiveThreadId: vi.fn(),
+        replaceWorkspaceState,
+        resetThreadState: vi.fn(),
+        listThreadsForWorkspace,
+        refreshThread,
+      }),
+    );
+
+    let applyResult: Awaited<
+      ReturnType<typeof result.current.applyDesktopMobileHandoffPayload>
+    > | null = null;
+    await act(async () => {
+      applyResult = await result.current.applyDesktopMobileHandoffPayload(
+        JSON.stringify({
+          version: 1,
+          issuedAtMs: 1773705600000,
+          remote: {
+            provider: "tcp",
+            host: "office.tailnet.ts.net:4732",
+            token: "token-office",
+            name: "Office Mac",
+          },
+          workspace: {
+            id: "ws-missing",
+            path: "/Users/me/dev/missing",
+            name: "missing",
+          },
+        }),
+      );
+    });
+
+    expect(applyResult).toEqual({
+      ok: false,
+      message: "Workspace not found on the remote backend.",
+    });
+    expect(replaceWorkspaceState).toHaveBeenCalledWith(
+      [remoteWorkspace],
+      { activeWorkspaceId: null, allowMissingActiveWorkspace: true },
+    );
+    expect(listThreadsForWorkspace).not.toHaveBeenCalled();
+    expect(refreshThread).not.toHaveBeenCalled();
+  });
+
+  it("lands on the workspace with a clear error when the handoff thread is missing", async () => {
+    const remoteWorkspace: WorkspaceInfo = {
+      id: "ws-office",
+      name: "codex-monitor",
+      path: "/Users/me/dev/codex-monitor",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+    updateAppSettingsMock.mockResolvedValue(baseSettings);
+    listWorkspacesMock.mockResolvedValue([remoteWorkspace]);
+
+    const setActiveThreadId = vi.fn();
+    const replaceWorkspaceState = vi.fn();
+    const listThreadsForWorkspace = vi.fn().mockResolvedValue([
+      {
+        id: "thread-other",
+        name: "Other thread",
+        updatedAt: 1,
+      },
+    ]);
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: false,
+      threadId: null,
+      errorMessage: "Unable to refresh the remote thread state.",
+    });
+
+    const { result } = renderHook(() =>
+      useRemoteBackendHandoff({
+        appSettings: baseSettings,
+        setAppSettings: vi.fn(),
+        activeWorkspace,
+        activeThreadId: null,
+        connectWorkspace: vi.fn().mockResolvedValue(undefined),
+        setActiveThreadId,
+        replaceWorkspaceState,
+        resetThreadState: vi.fn(),
+        listThreadsForWorkspace,
+        refreshThread,
+      }),
+    );
+
+    let applyResult: Awaited<
+      ReturnType<typeof result.current.applyDesktopMobileHandoffPayload>
+    > | null = null;
+    await act(async () => {
+      applyResult = await result.current.applyDesktopMobileHandoffPayload(
+        JSON.stringify({
+          version: 1,
+          issuedAtMs: 1773705600000,
+          remote: {
+            provider: "tcp",
+            host: "office.tailnet.ts.net:4732",
+            token: "token-office",
+            name: "Office Mac",
+          },
+          workspace: {
+            id: "ws-office",
+            path: "/Users/me/dev/codex-monitor",
+            name: "codex-monitor",
+          },
+          thread: {
+            id: "thread-missing",
+            title: "Missing thread",
+          },
+        }),
+      );
+    });
+
+    expect(applyResult).toEqual({
+      ok: false,
+      message: "Thread not found on the remote workspace.",
+    });
+    expect(replaceWorkspaceState).toHaveBeenCalledWith(
+      [remoteWorkspace],
+      { activeWorkspaceId: "ws-office" },
+    );
+    expect(refreshThread).toHaveBeenCalledWith("ws-office", "thread-missing");
+    expect(setActiveThreadId).not.toHaveBeenCalled();
   });
 });

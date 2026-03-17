@@ -11,7 +11,7 @@ type WorkspaceRestoreOptions = {
   listThreadsForWorkspaces: (
     workspaces: WorkspaceInfo[],
     options?: { preserveState?: boolean; maxPages?: number },
-  ) => Promise<void>;
+  ) => Promise<unknown>;
 };
 
 export function useWorkspaceRestore({

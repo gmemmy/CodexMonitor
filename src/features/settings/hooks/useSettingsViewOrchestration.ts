@@ -3,6 +3,7 @@ import type {
   AppSettings,
   CodexDoctorResult,
   CodexUpdateResult,
+  DesktopMobileHandoffPayloadV1,
   DictationModelStatus,
   WorkspaceGroup,
   WorkspaceSettings,
@@ -51,6 +52,7 @@ type UseSettingsViewOrchestrationArgs = {
   onTestNotificationSound: () => void;
   onTestSystemNotification: () => void;
   onMobileConnectSuccess?: () => Promise<void> | void;
+  onCreateDesktopMobileHandoffPayload?: () => DesktopMobileHandoffPayloadV1;
   onSelectSavedRemoteBackend?: (id: string) => Promise<string>;
   onMoveWorkspace: (id: string, direction: "up" | "down") => void;
   onDeleteWorkspace: (id: string) => void;
@@ -85,6 +87,7 @@ export function useSettingsViewOrchestration({
   onTestNotificationSound,
   onTestSystemNotification,
   onMobileConnectSuccess,
+  onCreateDesktopMobileHandoffPayload,
   onSelectSavedRemoteBackend,
   onMoveWorkspace,
   onDeleteWorkspace,
@@ -188,6 +191,7 @@ export function useSettingsViewOrchestration({
     appSettings,
     onUpdateAppSettings,
     onMobileConnectSuccess,
+    onCreateDesktopMobileHandoffPayload,
     onSelectSavedRemoteBackend,
   });
 

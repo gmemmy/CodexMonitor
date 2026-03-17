@@ -239,6 +239,28 @@ export type RemoteBackendTarget = {
   token: string | null;
   lastConnectedAtMs?: number | null;
 };
+export type DesktopMobileHandoffRemoteTargetV1 = {
+  provider: "tcp";
+  host: string;
+  token: string | null;
+  name: string | null;
+};
+export type DesktopMobileHandoffWorkspaceLocatorV1 = {
+  id: string;
+  path: string;
+  name: string;
+};
+export type DesktopMobileHandoffThreadLocatorV1 = {
+  id: string;
+  title: string | null;
+};
+export type DesktopMobileHandoffPayloadV1 = {
+  version: 1;
+  issuedAtMs: number;
+  remote: DesktopMobileHandoffRemoteTargetV1;
+  workspace: DesktopMobileHandoffWorkspaceLocatorV1;
+  thread?: DesktopMobileHandoffThreadLocatorV1;
+};
 export type ThemePreference = "system" | "light" | "dark" | "dim";
 export type PersonalityPreference = "friendly" | "pragmatic";
 export type FollowUpMessageBehavior = "queue" | "steer";

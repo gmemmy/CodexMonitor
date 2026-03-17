@@ -13,7 +13,7 @@ type UseThreadListActionsOptions = {
   listThreadsForWorkspaces: (
     workspaces: WorkspaceInfo[],
     options?: ListThreadsOptions,
-  ) => void | Promise<void>;
+  ) => void | Promise<unknown>;
   resetWorkspaceThreads: (workspaceId: string) => void;
 };
 

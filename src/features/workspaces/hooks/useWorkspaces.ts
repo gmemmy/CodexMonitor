@@ -45,7 +45,10 @@ export type UseWorkspacesResult = {
   setActiveWorkspaceId: (workspaceId: string | null) => void;
   replaceWorkspaceState: (
     workspaces: WorkspaceInfo[],
-    options?: { activeWorkspaceId?: string | null },
+    options?: {
+      activeWorkspaceId?: string | null;
+      allowMissingActiveWorkspace?: boolean;
+    },
   ) => void;
   addWorkspaceFromPath: (path: string, options?: { activate?: boolean }) => Promise<WorkspaceInfo | null>;
   addWorkspaceFromGitUrl: (
@@ -165,7 +168,10 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
   const replaceWorkspaceState = useCallback(
     (
       nextWorkspaces: WorkspaceInfo[],
-      options?: { activeWorkspaceId?: string | null },
+      options?: {
+        activeWorkspaceId?: string | null;
+        allowMissingActiveWorkspace?: boolean;
+      },
     ) => {
       setWorkspaces(nextWorkspaces);
       setRemoteWorkspaceSyncState("fresh");
@@ -178,6 +184,9 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
           nextWorkspaces.some((workspace) => workspace.id === preferredWorkspaceId)
         ) {
           return preferredWorkspaceId;
+        }
+        if (options?.allowMissingActiveWorkspace) {
+          return null;
         }
         return nextWorkspaces[0]?.id ?? null;
       });

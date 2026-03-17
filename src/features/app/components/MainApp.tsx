@@ -194,19 +194,6 @@ export default function MainApp() {
     addDebugEntry,
     queueSaveSettings,
   });
-  const {
-    isMobileRuntime,
-    showMobileSetupWizard,
-    mobileSetupWizardProps,
-    handleMobileConnectSuccess,
-  } = useMobileServerSetup({
-    appSettings,
-    appSettingsLoading,
-    queueSaveSettings,
-    refreshWorkspaces,
-  });
-  const updaterEnabled = !isMobileRuntime;
-
   const workspacesById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
     [workspaces],
@@ -603,15 +590,26 @@ export default function MainApp() {
   });
   const {
     handoffRemoteBackend,
+    captureDesktopMobileHandoffPayload,
+    applyDesktopMobileHandoffPayload,
     handoffInProgress: remoteBackendHandoffInProgress,
   } = useRemoteBackendHandoff({
     appSettings,
     setAppSettings,
     activeWorkspace,
+    activeThreadId,
+    activeThreadTitle:
+      activeWorkspaceId && activeThreadId
+        ? (
+            threadsByWorkspace[activeWorkspaceId] ?? []
+          ).find((thread) => thread.id === activeThreadId)?.name ?? null
+        : null,
     connectWorkspace,
+    setActiveThreadId,
     replaceWorkspaceState,
     resetThreadState,
     listThreadsForWorkspace,
+    refreshThread,
     refreshAccountInfo,
     refreshAccountRateLimits,
   });
@@ -628,6 +626,19 @@ export default function MainApp() {
     listThreadsForWorkspace,
     refreshThread,
   });
+  const {
+    isMobileRuntime,
+    showMobileSetupWizard,
+    mobileSetupWizardProps,
+    handleMobileConnectSuccess,
+  } = useMobileServerSetup({
+    appSettings,
+    appSettingsLoading,
+    queueSaveSettings,
+    refreshWorkspaces,
+    applyDesktopMobileHandoffPayload,
+  });
+  const updaterEnabled = !isMobileRuntime;
   const activeThreadIsProcessing = Boolean(
     activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
   );
@@ -1301,6 +1312,7 @@ export default function MainApp() {
       handleTestNotificationSound,
       handleTestSystemNotification,
       handleMobileConnectSuccess,
+      handleCreateDesktopMobileHandoffPayload: captureDesktopMobileHandoffPayload,
       handleSelectSavedRemoteBackend: handoffRemoteBackend,
       dictationModel,
     },
