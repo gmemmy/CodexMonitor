@@ -53,6 +53,37 @@ describe("useWorkspaceRefreshOnFocus", () => {
     );
   });
 
+  it("does not reload connected threads when workspace refresh fails", async () => {
+    const refreshWorkspaces = vi.fn().mockResolvedValue(undefined);
+    const listThreadsForWorkspaces = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useWorkspaceRefreshOnFocus({
+        workspaces: [
+          {
+            id: "ws-1",
+            name: "Workspace",
+            path: "/tmp/ws-1",
+            connected: true,
+            settings: { sidebarCollapsed: false },
+          },
+        ],
+        refreshWorkspaces,
+        listThreadsForWorkspaces,
+        backendMode: "remote",
+      }),
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(refreshWorkspaces).toHaveBeenCalledTimes(1);
+    expect(listThreadsForWorkspaces).not.toHaveBeenCalled();
+  });
+
   it("polls automatically in remote mode", async () => {
     const refreshWorkspaces = vi.fn().mockResolvedValue([
       {

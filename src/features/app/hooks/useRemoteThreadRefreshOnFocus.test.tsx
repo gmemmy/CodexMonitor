@@ -44,7 +44,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     vi.useRealTimers();
   });
 
-  it("refreshes the active remote thread on focus with debounce", () => {
+  it("refreshes the active remote thread on focus with debounce", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -62,19 +62,21 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       }),
     );
 
-    act(() => {
+    await act(async () => {
       window.dispatchEvent(new Event("focus"));
       vi.advanceTimersByTime(499);
+      await Promise.resolve();
     });
     expect(refreshThread).not.toHaveBeenCalled();
 
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(1);
+      await Promise.resolve();
     });
     expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
   });
 
-  it("refreshes even when workspace is marked disconnected", () => {
+  it("refreshes even when workspace is marked disconnected", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -92,9 +94,10 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       }),
     );
 
-    act(() => {
+    await act(async () => {
       window.dispatchEvent(new Event("focus"));
       vi.advanceTimersByTime(500);
+      await Promise.resolve();
     });
 
     expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
@@ -134,6 +137,81 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     expect(reconnectWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
       refreshThread.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
     );
+  });
+
+  it("reports refresh failures for stale remote thread state", async () => {
+    const onRefreshFailure = vi.fn();
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: false,
+      threadId: null,
+      errorMessage: "remote backend disconnected",
+    });
+
+    renderHook(() =>
+      useRemoteThreadRefreshOnFocus({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        refreshThread,
+        onRefreshFailure,
+      }),
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(onRefreshFailure).toHaveBeenCalledWith(
+      "ws-1",
+      "thread-1",
+      "remote backend disconnected",
+    );
+  });
+
+  it("reports reconnect failures before thread refresh", async () => {
+    const onRefreshFailure = vi.fn();
+    const reconnectWorkspace = vi
+      .fn()
+      .mockRejectedValue(new Error("auth failed"));
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-1",
+      errorMessage: null,
+    });
+
+    renderHook(() =>
+      useRemoteThreadRefreshOnFocus({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: false,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        reconnectWorkspace,
+        refreshThread,
+        onRefreshFailure,
+      }),
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(onRefreshFailure).toHaveBeenCalledWith("ws-1", "thread-1", "auth failed");
+    expect(refreshThread).not.toHaveBeenCalled();
   });
 
   it("does not drop a pending focus refresh when callback identity changes", async () => {

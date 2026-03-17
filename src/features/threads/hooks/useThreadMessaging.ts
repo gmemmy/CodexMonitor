@@ -84,7 +84,7 @@ type UseThreadMessagingOptions = {
   pushThreadErrorMessage: (threadId: string, message: string) => void;
   ensureThreadForActiveWorkspace: () => Promise<string | null>;
   ensureThreadForWorkspace: (workspaceId: string) => Promise<string | null>;
-  refreshThread: (workspaceId: string, threadId: string) => Promise<string | null>;
+  refreshThread: (workspaceId: string, threadId: string) => Promise<unknown>;
   forkThreadForWorkspace: (
     workspaceId: string,
     threadId: string,

@@ -15,6 +15,7 @@ import type {
   RequestUserInputRequest,
   RequestUserInputResponse,
 } from "../../../types";
+import type { ReactNode } from "react";
 import { isPlanReadyTaggedMessage } from "../../../utils/internalPlanReadyMessages";
 import { PlanReadyFollowupMessage } from "../../app/components/PlanReadyFollowupMessage";
 import { RequestUserInputMessage } from "../../app/components/RequestUserInputMessage";
@@ -62,6 +63,7 @@ type MessagesProps = {
   onPlanSubmitChanges?: (changes: string) => void;
   onOpenThreadLink?: (threadId: string, workspaceId?: string | null) => void;
   onQuoteMessage?: (text: string) => void;
+  remoteSyncBanner?: ReactNode;
 };
 
 function toMarkdownQuote(text: string): string {
@@ -97,6 +99,7 @@ export const Messages = memo(function Messages({
   onPlanSubmitChanges,
   onOpenThreadLink,
   onQuoteMessage,
+  remoteSyncBanner = null,
 }: MessagesProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -473,6 +476,7 @@ export const Messages = memo(function Messages({
       ref={containerRef}
       onScroll={updateAutoScroll}
     >
+      {remoteSyncBanner}
       {groupedItems.map((entry) => {
         if (entry.kind === "toolGroup") {
           const { group } = entry;

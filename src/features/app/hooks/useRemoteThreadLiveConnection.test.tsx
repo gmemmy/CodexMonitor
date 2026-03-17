@@ -154,6 +154,120 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(refreshThread.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("marks the thread stale when initial remote resume refresh fails", async () => {
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: false,
+      threadId: null,
+      errorMessage: "remote backend disconnected",
+    });
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+
+    const { result } = renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        activeThreadHasLocalSnapshot: false,
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.connectionState).toBe("stale");
+    expect(result.current.lastFailure?.message).toBe("remote backend disconnected");
+    expect(threadLiveSubscribeMock).not.toHaveBeenCalled();
+  });
+
+  it("marks the thread disconnected with the latest failure reason when reconnect fails", async () => {
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-1",
+      errorMessage: null,
+    });
+    const reconnectWorkspace = vi
+      .fn()
+      .mockRejectedValue(new Error("auth failed"));
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: false,
+      settings: { sidebarCollapsed: false },
+    };
+
+    const { result } = renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        refreshThread,
+        reconnectWorkspace,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.reconnectLive("ws-1", "thread-1", {
+        runResume: true,
+        reason: "manual",
+      });
+      await Promise.resolve();
+    });
+
+    expect(result.current.connectionState).toBe("disconnected");
+    expect(result.current.lastFailure?.message).toBe("auth failed");
+  });
+
+  it("skips workspace reconnect when manual reconnect already restored the workspace", async () => {
+    const refreshThread = vi.fn().mockResolvedValue({
+      ok: true,
+      threadId: "thread-1",
+      errorMessage: null,
+    });
+    const reconnectWorkspace = vi.fn().mockResolvedValue(undefined);
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: false,
+      settings: { sidebarCollapsed: false },
+    };
+
+    const { result } = renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: workspace,
+        activeThreadId: null,
+        refreshThread,
+        reconnectWorkspace,
+      }),
+    );
+
+    await act(async () => {
+      reconnectWorkspace.mockClear();
+      refreshThread.mockClear();
+      threadLiveSubscribeMock.mockClear();
+      await result.current.reconnectLive("ws-1", "thread-1", {
+        runResume: true,
+        reason: "manual",
+        workspaceConnectedHint: true,
+      });
+      await Promise.resolve();
+    });
+
+    expect(reconnectWorkspace).not.toHaveBeenCalled();
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(threadLiveSubscribeMock).toHaveBeenCalledWith("ws-1", "thread-1");
+  });
+
   it("does not reconnect detached stream when window is not focused", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 

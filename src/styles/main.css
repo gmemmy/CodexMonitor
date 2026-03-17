@@ -851,10 +851,16 @@
   -webkit-app-region: no-drag;
 }
 
+.compact-workspace-live-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 10px;
+}
+
 .compact-workspace-live-indicator {
   display: inline-flex;
   align-items: center;
-  margin-left: 10px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   padding: 3px 8px;
@@ -876,14 +882,84 @@
   background: color-mix(in srgb, var(--status-warning) 12%, transparent);
 }
 
+.compact-workspace-live-indicator.is-stale {
+  color: var(--status-warning);
+  border-color: color-mix(in srgb, var(--status-warning) 50%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 18%, transparent);
+}
+
 .compact-workspace-live-indicator.is-disconnected {
   color: var(--status-error);
   border-color: color-mix(in srgb, var(--status-error) 42%, transparent);
   background: color-mix(in srgb, var(--status-error) 12%, transparent);
 }
 
+.compact-workspace-reconnect {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.remote-sync-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+}
+
+.remote-sync-banner-stale {
+  border-color: color-mix(in srgb, var(--status-warning) 42%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
+}
+
+.remote-sync-banner-disconnected {
+  border-color: color-mix(in srgb, var(--status-error) 48%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-error) 12%, transparent);
+}
+
+.remote-sync-banner-copy {
+  min-width: 0;
+}
+
+.remote-sync-banner-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.remote-sync-banner-message {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.remote-sync-banner-action {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .compact-codex-refresh-icon.spinning {
   animation: compact-codex-refresh-spin 0.8s linear infinite;
+}
+
+@media (max-width: 900px) {
+  .remote-sync-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @keyframes compact-codex-refresh-spin {

@@ -46,7 +46,7 @@ describe("useThreadListActions", () => {
     expect(listThreadsForWorkspaces).toHaveBeenCalledWith([fresh[0], fresh[2]]);
   });
 
-  it("falls back to current workspaces when refresh fails", async () => {
+  it("does not reuse cached workspaces when refresh fails", async () => {
     const current = [workspace("one", true), workspace("two", false)];
     const refreshWorkspaces = vi.fn(async () => undefined);
     const listThreadsForWorkspaces = vi.fn(async () => {});
@@ -68,9 +68,7 @@ describe("useThreadListActions", () => {
     });
 
     expect(refreshWorkspaces).toHaveBeenCalledTimes(1);
-    expect(resetWorkspaceThreads).toHaveBeenCalledTimes(1);
-    expect(resetWorkspaceThreads).toHaveBeenCalledWith("one");
-    expect(listThreadsForWorkspaces).toHaveBeenCalledTimes(1);
-    expect(listThreadsForWorkspaces).toHaveBeenCalledWith([current[0]]);
+    expect(resetWorkspaceThreads).not.toHaveBeenCalled();
+    expect(listThreadsForWorkspaces).not.toHaveBeenCalled();
   });
 });

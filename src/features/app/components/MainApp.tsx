@@ -47,8 +47,10 @@ import { useMainAppSidebarMenuOrchestration } from "@app/hooks/useMainAppSidebar
 import { useMainAppWorktreeState } from "@app/hooks/useMainAppWorktreeState";
 import { useMainAppWorkspaceActions } from "@app/hooks/useMainAppWorkspaceActions";
 import { useMainAppWorkspaceLifecycle } from "@app/hooks/useMainAppWorkspaceLifecycle";
+import { RemoteSyncBanner } from "@app/components/RemoteSyncBanner";
 import type {
   ComposerEditorSettings,
+  RemoteThreadConnectionState,
   ServiceTier,
   WorkspaceInfo,
 } from "@/types";
@@ -83,6 +85,12 @@ import {
 } from "@threads/utils/threadCodexParamsSeed";
 import { subscribeTrayOpenThread } from "@services/events";
 import { setWorkspaceRuntimeCodexArgs } from "@services/tauri";
+import {
+  ensureConnectedWorkspace,
+  normalizeThreadRefreshResult,
+  resolveRemoteSyncBannerContent,
+  selectLatestRemoteSyncFailure,
+} from "@app/utils/remoteSync";
 
 const SettingsView = lazy(() =>
   import("@settings/components/SettingsView").then((module) => ({
@@ -133,6 +141,7 @@ export default function MainApp() {
     "home" | "projects" | "codex" | "git" | "log"
   >("codex");
   const [mobileThreadRefreshLoading, setMobileThreadRefreshLoading] = useState(false);
+  const [remoteReconnectLoading, setRemoteReconnectLoading] = useState(false);
   const tabletTab =
     activeTab === "projects" || activeTab === "home" ? "codex" : activeTab;
   const {
@@ -170,6 +179,8 @@ export default function MainApp() {
     deletingWorktreeIds,
     hasLoaded,
     refreshWorkspaces,
+    remoteWorkspaceSyncState,
+    lastRemoteSyncFailure,
   } = useWorkspaceController({
     appSettings,
     addDebugEntry,
@@ -576,7 +587,13 @@ export default function MainApp() {
     threadSortKey: threadListSortKey,
     onThreadCodexMetadataDetected: handleThreadCodexMetadataDetected,
   });
-  const { connectionState: remoteThreadConnectionState, reconnectLive } =
+  const {
+    connectionState: remoteThreadConnectionState,
+    lastFailure: remoteThreadLastFailure,
+    clearSyncFailure: clearRemoteThreadSyncFailure,
+    reportSyncFailure: reportRemoteThreadSyncFailure,
+    reconnectLive,
+  } =
     useRemoteThreadLiveConnection({
       backendMode: appSettings.backendMode,
       activeWorkspace,
@@ -589,23 +606,116 @@ export default function MainApp() {
       reconnectWorkspace: connectWorkspace,
     });
 
+  const handleRemoteThreadRefreshFailure = useCallback(
+    (workspaceId: string, threadId: string, message: string) => {
+      reportRemoteThreadSyncFailure(workspaceId, threadId, {
+        phase: "thread_refresh",
+        message,
+      });
+    },
+    [reportRemoteThreadSyncFailure],
+  );
+
+  const handleRemoteThreadRefreshSuccess = useCallback(
+    (workspaceId: string, threadId: string) => {
+      clearRemoteThreadSyncFailure(workspaceId, threadId);
+    },
+    [clearRemoteThreadSyncFailure],
+  );
+
+  const handleReconnectRemote = useCallback(() => {
+    if (
+      remoteReconnectLoading ||
+      appSettings.backendMode !== "remote" ||
+      !activeWorkspace
+    ) {
+      return;
+    }
+    setRemoteReconnectLoading(true);
+    void (async () => {
+      const refreshedWorkspaces = await refreshWorkspaces();
+      let refreshedWorkspace =
+        refreshedWorkspaces?.find((workspace) => workspace.id === activeWorkspace.id) ??
+        activeWorkspace;
+
+      if (activeThreadId) {
+        if (appSettings.backendMode === "remote") {
+          refreshedWorkspace = await ensureConnectedWorkspace(
+            refreshedWorkspace,
+            connectWorkspace,
+          );
+        }
+        await reconnectLive(refreshedWorkspace.id, activeThreadId, {
+          runResume: true,
+          reason: "manual",
+          workspaceConnectedHint: refreshedWorkspace.connected,
+        });
+        return;
+      }
+
+      if (appSettings.backendMode === "remote") {
+        refreshedWorkspace = await ensureConnectedWorkspace(
+          refreshedWorkspace,
+          connectWorkspace,
+        );
+      }
+
+      if (refreshedWorkspace.connected) {
+        await listThreadsForWorkspaces([refreshedWorkspace], { preserveState: true });
+      }
+    })()
+      .catch(() => {
+        // Reconnect failures already update explicit remote sync state.
+      })
+      .finally(() => {
+        setRemoteReconnectLoading(false);
+      });
+  }, [
+    activeThreadId,
+    activeWorkspace,
+    appSettings.backendMode,
+    connectWorkspace,
+    listThreadsForWorkspaces,
+    reconnectLive,
+    refreshWorkspaces,
+    remoteReconnectLoading,
+  ]);
+
   const handleMobileThreadRefresh = useCallback(() => {
     if (mobileThreadRefreshLoading || !activeWorkspace) {
       return;
     }
     setMobileThreadRefreshLoading(true);
     void (async () => {
+      let workspace = activeWorkspace;
+      if (appSettings.backendMode === "remote") {
+        workspace = await ensureConnectedWorkspace(workspace, connectWorkspace);
+      }
       let threadId = activeThreadId;
       if (!threadId) {
-        threadId = await startThreadForWorkspace(activeWorkspace.id, {
+        threadId = await startThreadForWorkspace(workspace.id, {
           activate: true,
         });
       }
       if (!threadId) {
         return;
       }
-      await refreshThread(activeWorkspace.id, threadId);
-      await reconnectLive(activeWorkspace.id, threadId, { runResume: false });
+      const refreshResult = normalizeThreadRefreshResult(
+        await refreshThread(workspace.id, threadId),
+      );
+      if (!refreshResult.ok) {
+        handleRemoteThreadRefreshFailure(
+          workspace.id,
+          threadId,
+          refreshResult.errorMessage ?? "Unable to refresh the remote thread state.",
+        );
+        return;
+      }
+      handleRemoteThreadRefreshSuccess(workspace.id, threadId);
+      await reconnectLive(workspace.id, threadId, {
+        runResume: false,
+        workspaceConnectedHint: workspace.connected,
+      });
     })()
       .catch(() => {
         // Errors are surfaced through debug entries/toasts in existing thread actions.
@@ -616,8 +726,12 @@ export default function MainApp() {
   }, [
     activeThreadId,
     activeWorkspace,
+    appSettings.backendMode,
+    connectWorkspace,
     mobileThreadRefreshLoading,
     refreshThread,
+    handleRemoteThreadRefreshFailure,
+    handleRemoteThreadRefreshSuccess,
     reconnectLive,
     startThreadForWorkspace,
   ]);
@@ -1327,7 +1441,53 @@ export default function MainApp() {
     threadStatusById,
     remoteThreadConnectionState,
     refreshThread,
+    onRemoteThreadRefreshFailure: handleRemoteThreadRefreshFailure,
+    onRemoteThreadRefreshSuccess: handleRemoteThreadRefreshSuccess,
   });
+
+  const remoteConnectionStateForShell: RemoteThreadConnectionState =
+    !activeWorkspace?.connected
+      ? "disconnected"
+      : remoteWorkspaceSyncState === "stale" || remoteThreadConnectionState === "stale"
+        ? "stale"
+        : remoteThreadConnectionState;
+  const remoteSyncFailure = selectLatestRemoteSyncFailure(
+    remoteThreadLastFailure,
+    lastRemoteSyncFailure,
+  );
+  const remoteSyncBannerNode = useMemo(() => {
+    if (
+      appSettings.backendMode !== "remote" ||
+      !activeWorkspace ||
+      (remoteConnectionStateForShell !== "stale" &&
+        remoteConnectionStateForShell !== "disconnected")
+    ) {
+      return null;
+    }
+    const banner = resolveRemoteSyncBannerContent({
+      connectionState: remoteConnectionStateForShell,
+      activeThreadId,
+      failure: remoteSyncFailure,
+    });
+
+    return (
+      <RemoteSyncBanner
+        state={banner.state}
+        title={banner.title}
+        message={banner.message}
+        actionBusy={remoteReconnectLoading}
+        onAction={handleReconnectRemote}
+      />
+    );
+  }, [
+    activeThreadId,
+    activeWorkspace,
+    appSettings.backendMode,
+    handleReconnectRemote,
+    remoteConnectionStateForShell,
+    remoteReconnectLoading,
+    remoteSyncFailure,
+  ]);
 
   const {
     handleAddWorkspace,
@@ -1660,6 +1820,7 @@ export default function MainApp() {
           onAgentMdSave: () => {
             void saveAgentMd();
           },
+          remoteSyncBanner: remoteSyncBannerNode,
         }
       : null,
   });
@@ -1856,6 +2017,7 @@ export default function MainApp() {
     setActiveTab,
     tabletTab,
     showMobilePollingFetchStatus,
+    remoteSyncBannerNode,
     appModalsAboutOpen:
       appModalsProps.settingsOpen && appModalsProps.settingsSection === 'about',
     updaterState,
@@ -1893,10 +2055,8 @@ export default function MainApp() {
   } = useMainAppLayoutNodes(layoutSurfaces);
 
   const mainMessagesNode = showWorkspaceHome ? workspaceHomeNode : messagesNode;
-  const compactThreadConnectionState: "live" | "polling" | "disconnected" =
-    !activeWorkspace?.connected
-      ? "disconnected"
-      : remoteThreadConnectionState;
+  const compactThreadConnectionState: RemoteThreadConnectionState =
+    remoteConnectionStateForShell;
   const mainAppShellProps = useMainAppShellProps({
     shell: {
       appClassName,
@@ -1962,6 +2122,11 @@ export default function MainApp() {
       hasActiveWorkspace: Boolean(activeWorkspace),
       backendMode: appSettings.backendMode,
       remoteThreadConnectionState: compactThreadConnectionState,
+      showReconnectAction:
+        compactThreadConnectionState === "stale" ||
+        compactThreadConnectionState === "disconnected",
+      reconnectLoading: remoteReconnectLoading,
+      onReconnect: handleReconnectRemote,
     },
   });
 

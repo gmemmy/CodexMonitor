@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AppSettings,
   DebugEntry,
+  RemoteSyncFailure,
+  RemoteWorkspaceSyncState,
   WorkspaceGroup,
   WorkspaceInfo,
   WorkspaceSettings,
@@ -70,12 +72,18 @@ export type UseWorkspacesResult = {
   deletingWorktreeIds: Set<string>;
   hasLoaded: boolean;
   refreshWorkspaces: () => Promise<WorkspaceInfo[] | undefined>;
+  remoteWorkspaceSyncState: RemoteWorkspaceSyncState;
+  lastRemoteSyncFailure: RemoteSyncFailure | null;
 };
 
 export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspacesResult {
   const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [remoteWorkspaceSyncState, setRemoteWorkspaceSyncState] =
+    useState<RemoteWorkspaceSyncState>("fresh");
+  const [lastRemoteSyncFailure, setLastRemoteSyncFailure] =
+    useState<RemoteSyncFailure | null>(null);
   const workspaceSettingsRef = useRef<Map<string, WorkspaceSettings>>(new Map());
   const { onDebug, appSettings, onUpdateAppSettings } = options;
 
@@ -91,12 +99,23 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     updateWorkspaceSettings,
   } = useWorkspaceCrud({
     onDebug,
+    backendMode: appSettings?.backendMode ?? "local",
     workspaces,
     setWorkspaces,
     setActiveWorkspaceId,
     workspaceSettingsRef,
     setHasLoaded,
+    setRemoteWorkspaceSyncState,
+    setLastRemoteSyncFailure,
   });
+
+  useEffect(() => {
+    if (appSettings?.backendMode === "remote") {
+      return;
+    }
+    setRemoteWorkspaceSyncState("fresh");
+    setLastRemoteSyncFailure(null);
+  }, [appSettings?.backendMode]);
 
   useEffect(() => {
     void refreshWorkspaces();
@@ -196,5 +215,7 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     deletingWorktreeIds,
     hasLoaded,
     refreshWorkspaces,
+    remoteWorkspaceSyncState,
+    lastRemoteSyncFailure,
   };
 }

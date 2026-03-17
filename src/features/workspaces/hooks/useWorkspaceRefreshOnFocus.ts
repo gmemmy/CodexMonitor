@@ -55,13 +55,19 @@ export function useWorkspaceRefreshOnFocus({
       } = optionsRef.current;
       void (async () => {
         let latestWorkspaces = ws;
+        let refreshSucceeded = false;
         try {
           const entries = await refresh();
-          if (entries) {
+          if (Array.isArray(entries)) {
+            refreshSucceeded = true;
             latestWorkspaces = entries;
           }
         } catch {
           // Silent: refresh errors show in debug panel.
+          refreshSucceeded = false;
+        }
+        if (!refreshSucceeded) {
+          return;
         }
         const connected = latestWorkspaces.filter((entry) => entry.connected);
         if (connected.length > 0) {

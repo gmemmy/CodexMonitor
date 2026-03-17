@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { WorkspaceInfo } from "../../../types";
+import {
+  formatRemoteSyncErrorMessage,
+  normalizeThreadRefreshResult,
+} from "@app/utils/remoteSync";
 
 export const REMOTE_THREAD_POLL_INTERVAL_MS = 12000;
 
@@ -12,6 +16,8 @@ type UseRemoteThreadRefreshOnFocusOptions = {
   suspendPolling?: boolean;
   reconnectWorkspace?: (workspace: WorkspaceInfo) => Promise<unknown> | unknown;
   refreshThread: (workspaceId: string, threadId: string) => Promise<unknown> | unknown;
+  onRefreshFailure?: (workspaceId: string, threadId: string, message: string) => void;
+  onRefreshSuccess?: (workspaceId: string, threadId: string) => void;
 };
 
 export function useRemoteThreadRefreshOnFocus({
@@ -22,10 +28,14 @@ export function useRemoteThreadRefreshOnFocus({
   suspendPolling = false,
   reconnectWorkspace,
   refreshThread,
+  onRefreshFailure,
+  onRefreshSuccess,
 }: UseRemoteThreadRefreshOnFocusOptions) {
   const workspaceId = activeWorkspace?.id ?? null;
   const refreshThreadRef = useRef(refreshThread);
   const reconnectWorkspaceRef = useRef(reconnectWorkspace);
+  const onRefreshFailureRef = useRef(onRefreshFailure);
+  const onRefreshSuccessRef = useRef(onRefreshSuccess);
   const activeWorkspaceRef = useRef(activeWorkspace);
   const workspaceConnectedRef = useRef(Boolean(activeWorkspace?.connected));
 
@@ -36,6 +46,14 @@ export function useRemoteThreadRefreshOnFocus({
   useEffect(() => {
     reconnectWorkspaceRef.current = reconnectWorkspace;
   }, [reconnectWorkspace]);
+
+  useEffect(() => {
+    onRefreshFailureRef.current = onRefreshFailure;
+  }, [onRefreshFailure]);
+
+  useEffect(() => {
+    onRefreshSuccessRef.current = onRefreshSuccess;
+  }, [onRefreshSuccess]);
 
   useEffect(() => {
     activeWorkspaceRef.current = activeWorkspace;
@@ -58,25 +76,36 @@ export function useRemoteThreadRefreshOnFocus({
       Boolean(workspaceId) &&
       Boolean(activeThreadId);
 
-    const ensureWorkspaceConnected = () => {
+    const ensureWorkspaceConnected = async () => {
       if (
         !activeWorkspaceRef.current ||
         workspaceConnectedRef.current ||
         reconnectInFlight ||
         !reconnectWorkspaceRef.current
       ) {
-        return null;
+        return true;
       }
       reconnectInFlight = true;
-      return Promise.resolve(
-        reconnectWorkspaceRef.current(activeWorkspaceRef.current),
-      )
-        .catch(() => {
-          // Ignore reconnect failures so lifecycle hooks do not surface toast noise.
-        })
-        .finally(() => {
-          reconnectInFlight = false;
-        });
+      try {
+        await Promise.resolve(
+          reconnectWorkspaceRef.current(activeWorkspaceRef.current),
+        );
+        return true;
+      } catch (error) {
+        if (workspaceId && activeThreadId) {
+          onRefreshFailureRef.current?.(
+            workspaceId,
+            activeThreadId,
+            formatRemoteSyncErrorMessage(
+              error,
+              "Unable to reconnect to the remote workspace.",
+            ),
+          );
+        }
+        return false;
+      } finally {
+        reconnectInFlight = false;
+      }
     };
 
     const runRefresh = () => {
@@ -85,13 +114,22 @@ export function useRemoteThreadRefreshOnFocus({
       }
       refreshInFlight = true;
       void (async () => {
-        const reconnectPromise = ensureWorkspaceConnected();
-        if (reconnectPromise) {
-          await reconnectPromise;
+        const reconnected = await ensureWorkspaceConnected();
+        if (!reconnected) {
+          return;
         }
-        await Promise.resolve(
-          refreshThreadRef.current(workspaceId, activeThreadId),
+        const refreshResult = normalizeThreadRefreshResult(
+          await Promise.resolve(refreshThreadRef.current(workspaceId, activeThreadId)),
         );
+        if (!refreshResult.ok) {
+          onRefreshFailureRef.current?.(
+            workspaceId,
+            activeThreadId,
+            refreshResult.errorMessage ?? "Unable to refresh the remote thread state.",
+          );
+          return;
+        }
+        onRefreshSuccessRef.current?.(workspaceId, activeThreadId);
       })()
         .catch(() => {
           // Ignore refresh failures so lifecycle hooks do not surface toast noise.
@@ -210,5 +248,6 @@ export function useRemoteThreadRefreshOnFocus({
     backendMode,
     suspendPolling,
     workspaceId,
+    activeThreadId,
   ]);
 }

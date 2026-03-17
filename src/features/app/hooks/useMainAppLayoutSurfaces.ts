@@ -213,6 +213,7 @@ type UseMainAppLayoutSurfacesArgs = {
   setActiveTab: (tab: "home" | "projects" | "codex" | "git" | "log") => void;
   tabletTab: LayoutNodesOptions["primary"]["tabletNavProps"]["activeTab"];
   showMobilePollingFetchStatus: boolean;
+  remoteSyncBannerNode: LayoutNodesOptions["primary"]["messagesProps"]["remoteSyncBanner"];
   appModalsAboutOpen: boolean;
   updaterState: LayoutNodesOptions["primary"]["updateToastProps"]["state"];
   startUpdate: LayoutNodesOptions["primary"]["updateToastProps"]["onUpdate"];
@@ -372,6 +373,7 @@ export function useMainAppLayoutSurfaces({
   setActiveTab,
   tabletTab,
   showMobilePollingFetchStatus,
+  remoteSyncBannerNode,
   appModalsAboutOpen,
   updaterState,
   startUpdate,
@@ -474,6 +476,7 @@ export function useMainAppLayoutSurfaces({
           : null,
         showPollingFetchStatus: showMobilePollingFetchStatus,
         pollingIntervalMs: REMOTE_THREAD_POLL_INTERVAL_MS,
+        remoteSyncBanner: remoteSyncBannerNode,
       },
       composerProps: composerWorkspaceState.showComposer
         ? {

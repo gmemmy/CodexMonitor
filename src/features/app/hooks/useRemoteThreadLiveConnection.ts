@@ -6,15 +6,28 @@ import {
   getAppServerParams,
   getAppServerRawMethod,
 } from "@utils/appServerEvents";
-import type { WorkspaceInfo } from "@/types";
-
-export type RemoteThreadConnectionState = "live" | "polling" | "disconnected";
+import type {
+  RemoteSyncFailure,
+  RemoteThreadConnectionState,
+  WorkspaceInfo,
+} from "@/types";
+import {
+  buildRemoteSyncFailure,
+  formatRemoteSyncErrorMessage,
+  normalizeThreadRefreshResult,
+} from "@app/utils/remoteSync";
 
 const SELF_DETACH_IGNORE_WINDOW_MS = 10_000;
 
 type ReconnectOptions = {
   runResume?: boolean;
-  reason?: "thread-switch" | "focus" | "detached-recovery" | "connected-recovery";
+  workspaceConnectedHint?: boolean;
+  reason?:
+    | "thread-switch"
+    | "focus"
+    | "detached-recovery"
+    | "connected-recovery"
+    | "manual";
 };
 
 type UseRemoteThreadLiveConnectionOptions = {
@@ -95,6 +108,7 @@ export function useRemoteThreadLiveConnection({
       }
       return "polling";
     });
+  const [lastFailure, setLastFailure] = useState<RemoteSyncFailure | null>(null);
 
   const backendModeRef = useRef(backendMode);
   const activeWorkspaceRef = useRef(activeWorkspace);
@@ -144,6 +158,57 @@ export function useRemoteThreadLiveConnection({
     setConnectionState(next);
   }, []);
 
+  const clearSyncFailure = useCallback(
+    (workspaceId?: string | null, threadId?: string | null) => {
+      const activeWorkspaceId = activeWorkspaceRef.current?.id ?? null;
+      const activeThreadId = activeThreadIdRef.current;
+      if (
+        (workspaceId && workspaceId !== activeWorkspaceId) ||
+        (threadId && threadId !== activeThreadId)
+      ) {
+        return;
+      }
+      setLastFailure(null);
+      if (backendModeRef.current !== "remote") {
+        setState(activeWorkspaceRef.current?.connected ? "live" : "disconnected");
+        return;
+      }
+      if (!activeWorkspaceRef.current?.connected) {
+        setState("disconnected");
+        return;
+      }
+      const targetKey =
+        activeWorkspaceId && activeThreadId
+          ? keyForThread(activeWorkspaceId, activeThreadId)
+          : null;
+      if (targetKey && activeSubscriptionKeyRef.current === targetKey) {
+        setState("live");
+        return;
+      }
+      setState("polling");
+    },
+    [setState],
+  );
+
+  const reportSyncFailure = useCallback(
+    (
+      workspaceId: string,
+      threadId: string,
+      failure: Omit<RemoteSyncFailure, "at" | "workspaceId" | "threadId">,
+    ) => {
+      const activeWorkspaceId = activeWorkspaceRef.current?.id ?? null;
+      const activeThreadId = activeThreadIdRef.current;
+      if (workspaceId !== activeWorkspaceId || threadId !== activeThreadId) {
+        return;
+      }
+      setLastFailure(
+        buildRemoteSyncFailure(failure.phase, failure.message, workspaceId, threadId),
+      );
+      setState(activeWorkspaceRef.current?.connected ? "stale" : "disconnected");
+    },
+    [setState],
+  );
+
   const unsubscribeByKey = useCallback(
     async (key: string) => {
       const parsed = splitKey(key);
@@ -169,6 +234,10 @@ export function useRemoteThreadLiveConnection({
     }
     setState("polling");
   }, [setState]);
+
+  useEffect(() => {
+    clearSyncFailure();
+  }, [activeWorkspaceId, activeThreadId, backendMode, clearSyncFailure]);
 
   const reconnectLive = useCallback(
     async (
@@ -201,9 +270,11 @@ export function useRemoteThreadLiveConnection({
         const sequence = reconnectSequenceRef.current + 1;
         reconnectSequenceRef.current = sequence;
         const workspaceAtStart = activeWorkspaceRef.current;
+        const workspaceConnectedAtStart =
+          options?.workspaceConnectedHint ?? Boolean(workspaceAtStart?.connected);
         const shouldResume = options?.runResume !== false;
         const shouldKeepLiveState = options?.reason === "thread-switch";
-        if (!workspaceAtStart?.connected) {
+        if (!workspaceConnectedAtStart) {
           setState("disconnected");
         } else if (shouldResume || !shouldKeepLiveState) {
           setState("polling");
@@ -214,9 +285,13 @@ export function useRemoteThreadLiveConnection({
         try {
           desiredSubscriptionKeyRef.current = targetKey;
           const workspaceEntry = activeWorkspaceRef.current;
+          const needsWorkspaceReconnect =
+            options?.workspaceConnectedHint === false ||
+            (typeof options?.workspaceConnectedHint === "undefined" &&
+              workspaceEntry?.connected === false);
           if (
             workspaceEntry &&
-            !workspaceEntry.connected &&
+            needsWorkspaceReconnect &&
             reconnectWorkspaceRef.current &&
             workspaceEntry.id === workspaceId
           ) {
@@ -227,7 +302,21 @@ export function useRemoteThreadLiveConnection({
           }
 
           if (shouldResume) {
-            await Promise.resolve(refreshThreadRef.current(workspaceId, threadId));
+            const refreshResult = normalizeThreadRefreshResult(
+              await Promise.resolve(refreshThreadRef.current(workspaceId, threadId)),
+            );
+            if (!refreshResult.ok) {
+              if (sequence === reconnectSequenceRef.current) {
+                reportSyncFailure(workspaceId, threadId, {
+                  phase: "thread_refresh",
+                  message:
+                    refreshResult.errorMessage ??
+                    "Unable to refresh the remote thread state.",
+                });
+              }
+              return false;
+            }
+            clearSyncFailure(workspaceId, threadId);
           }
           if (sequence !== reconnectSequenceRef.current) {
             return false;
@@ -254,15 +343,22 @@ export function useRemoteThreadLiveConnection({
           }
 
           activeSubscriptionKeyRef.current = targetKey;
+          clearSyncFailure(workspaceId, threadId);
           if (shouldResume || !shouldKeepLiveState) {
             setState("polling");
           } else {
             setState("live");
           }
           return true;
-        } catch {
+        } catch (error) {
           if (sequence === reconnectSequenceRef.current) {
-            reconcileDisconnectedState();
+            reportSyncFailure(workspaceId, threadId, {
+              phase: "thread_live",
+              message: formatRemoteSyncErrorMessage(
+                error,
+                "Unable to reconnect the remote thread stream.",
+              ),
+            });
           }
           return false;
         }
@@ -360,6 +456,7 @@ export function useRemoteThreadLiveConnection({
         const threadId = extractThreadId(method, params);
         if (threadId === selectedThreadId) {
           activeSubscriptionKeyRef.current = keyForThread(activeWorkspaceId, threadId);
+          clearSyncFailure(activeWorkspaceId, threadId);
           setState(connectionStateRef.current === "polling" ? "polling" : "live");
         }
         return;
@@ -379,7 +476,10 @@ export function useRemoteThreadLiveConnection({
             ignoreDetachedEventsUntilRef.current.delete(threadKey);
           }
           activeSubscriptionKeyRef.current = null;
-          reconcileDisconnectedState();
+          reportSyncFailure(activeWorkspaceId, threadId, {
+            phase: "thread_live",
+            message: "Lost live connection to the remote thread.",
+          });
           if (isDocumentVisible() && isWindowFocused()) {
             void reconnectLive(activeWorkspaceId, selectedThreadId, {
               runResume: true,
@@ -393,6 +493,7 @@ export function useRemoteThreadLiveConnection({
       if (method === "thread/live_heartbeat") {
         const threadId = extractThreadId(method, params);
         if (threadId === selectedThreadId) {
+          clearSyncFailure(activeWorkspaceId, threadId);
           setState("live");
         }
         return;
@@ -405,6 +506,7 @@ export function useRemoteThreadLiveConnection({
       if (threadId !== selectedThreadId) {
         return;
       }
+      clearSyncFailure(activeWorkspaceId, threadId);
       setState("live");
     });
 
@@ -514,6 +616,9 @@ export function useRemoteThreadLiveConnection({
 
   return {
     connectionState,
+    lastFailure,
+    clearSyncFailure,
+    reportSyncFailure,
     reconnectLive,
   };
 }
