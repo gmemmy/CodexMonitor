@@ -16,6 +16,7 @@ import { pushErrorToast } from "../../../services/toasts";
 import {
   fileManagerName,
   isAbsolutePath as isAbsolutePathForPlatform,
+  isMobilePlatform,
 } from "../../../utils/platformPaths";
 import {
   GitBranchRow,
@@ -233,6 +234,7 @@ export function GitDiffPanel({
   syncError = null,
   commitsAhead = 0,
 }: GitDiffPanelProps) {
+  const mobilePlatform = isMobilePlatform();
   const [dismissedErrorSignatures, setDismissedErrorSignatures] = useState<Set<string>>(
     new Set(),
   );
@@ -447,34 +449,36 @@ export function GitDiffPanel({
           relativeRoot !== null ? joinRootAndPath(relativeRoot, rawPath) : rawPath;
         const fileName = getFileName(rawPath);
 
-        items.push(
-          await MenuItem.new({
-            text: `Show in ${fileManagerLabel}`,
-            action: async () => {
-              try {
-                if (!resolvedRoot && !isAbsolutePathForPlatform(absolutePath)) {
+        if (!mobilePlatform) {
+          items.push(
+            await MenuItem.new({
+              text: `Show in ${fileManagerLabel}`,
+              action: async () => {
+                try {
+                  if (!resolvedRoot && !isAbsolutePathForPlatform(absolutePath)) {
+                    pushErrorToast({
+                      title: `Couldn't show file in ${fileManagerLabel}`,
+                      message: "Select a git root first.",
+                    });
+                    return;
+                  }
+                  const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+                  await revealItemInDir(absolutePath);
+                } catch (menuError) {
+                  const message = menuError instanceof Error ? menuError.message : String(menuError);
                   pushErrorToast({
                     title: `Couldn't show file in ${fileManagerLabel}`,
-                    message: "Select a git root first.",
+                    message,
                   });
-                  return;
+                  console.warn("Failed to reveal file", {
+                    message,
+                    path: absolutePath,
+                  });
                 }
-                const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-                await revealItemInDir(absolutePath);
-              } catch (menuError) {
-                const message = menuError instanceof Error ? menuError.message : String(menuError);
-                pushErrorToast({
-                  title: `Couldn't show file in ${fileManagerLabel}`,
-                  message,
-                });
-                console.warn("Failed to reveal file", {
-                  message,
-                  path: absolutePath,
-                });
-              }
-            },
-          }),
-        );
+              },
+            }),
+          );
+        }
 
         items.push(
           await MenuItem.new({
@@ -523,6 +527,7 @@ export function GitDiffPanel({
       discardFiles,
       gitRoot,
       gitRootCandidates,
+      mobilePlatform,
       workspacePath,
     ],
   );

@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GitLogEntry } from "../../../types";
 import { GitDiffPanel } from "./GitDiffPanel";
 import { fileManagerName } from "../../../utils/platformPaths";
 
+const isMobilePlatform = vi.hoisted(() => vi.fn(() => false));
 const menuNew = vi.hoisted(() =>
   vi.fn(async ({ items }) => ({ popup: vi.fn(), items })),
 );
@@ -42,6 +43,16 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   ask: vi.fn(async () => true),
 }));
 
+vi.mock("../../../utils/platformPaths", async () => {
+  const actual = await vi.importActual<typeof import("../../../utils/platformPaths")>(
+    "../../../utils/platformPaths",
+  );
+  return {
+    ...actual,
+    isMobilePlatform,
+  };
+});
+
 vi.mock("../../../services/toasts", () => ({
   pushErrorToast: vi.fn(),
 }));
@@ -68,6 +79,11 @@ const baseProps = {
 };
 
 describe("GitDiffPanel", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    isMobilePlatform.mockReturnValue(false);
+  });
+
   it("shows an initialize git button when the repo is missing", () => {
     const onInitGitRepo = vi.fn();
     const { container } = render(
@@ -229,6 +245,36 @@ describe("GitDiffPanel", () => {
     expect(revealItemInDir).toHaveBeenCalledWith("/tmp/repo/apps/src/sample.ts");
   });
 
+  it("omits the show in file manager option on mobile while keeping copy actions", async () => {
+    isMobilePlatform.mockReturnValue(true);
+    const { container } = render(
+      <GitDiffPanel
+        {...baseProps}
+        workspacePath="/tmp/repo"
+        gitRoot="/tmp/repo"
+        unstagedFiles={[
+          { path: "src/sample.ts", status: "M", additions: 1, deletions: 0 },
+        ]}
+      />,
+    );
+
+    const row = container.querySelector(".diff-row");
+    expect(row).not.toBeNull();
+    fireEvent.contextMenu(row as Element);
+
+    await waitFor(() => expect(menuNew).toHaveBeenCalled());
+    const menuArgs = menuNew.mock.calls[menuNew.mock.calls.length - 1]?.[0];
+    const revealItem = menuArgs.items.find(
+      (item: { text: string }) => item.text === `Show in ${fileManagerName()}`,
+    );
+    const copyPathItem = menuArgs.items.find(
+      (item: { text: string }) => item.text === "Copy file path",
+    );
+
+    expect(revealItem).toBeUndefined();
+    expect(copyPathItem).toBeDefined();
+  });
+
   it("copies file path relative to the workspace root", async () => {
     clipboardWriteText.mockClear();
     const { container } = render(
@@ -331,5 +377,4 @@ describe("GitDiffPanel", () => {
       "src/main.ts@@item-change-1@@change-0",
     );
   });
-
 });

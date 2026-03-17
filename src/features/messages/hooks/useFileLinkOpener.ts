@@ -10,6 +10,7 @@ import { pushErrorToast } from "../../../services/toasts";
 import type { OpenAppTarget } from "../../../types";
 import {
   isAbsolutePath,
+  isMobilePlatform,
   joinWorkspacePath,
   revealInFileManagerLabel,
 } from "../../../utils/platformPaths";
@@ -32,6 +33,8 @@ const DEFAULT_OPEN_TARGET: OpenTarget = {
   command: null,
   args: [],
 };
+const MOBILE_FILE_OPEN_UNAVAILABLE_MESSAGE =
+  "Opening linked files isn't available on mobile. Copy the path or open it from a desktop workspace.";
 
 const resolveAppName = (target: OpenTarget) => (target.appName ?? "").trim();
 const resolveCommand = (target: OpenTarget) => (target.command ?? "").trim();
@@ -146,6 +149,7 @@ export function useFileLinkOpener(
   openTargets: OpenAppTarget[],
   selectedOpenAppId: string,
 ) {
+  const mobilePlatform = isMobilePlatform();
   const reportOpenError = useCallback(
     (error: unknown, context: Record<string, string | null>) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -166,6 +170,19 @@ export function useFileLinkOpener(
     },
     [],
   );
+  const reportMobileOpenUnavailable = useCallback(
+    (context: { rawPath: string; resolvedPath: string }) => {
+      pushErrorToast({
+        title: "Couldn’t open file",
+        message: MOBILE_FILE_OPEN_UNAVAILABLE_MESSAGE,
+      });
+      console.warn("Blocked file link open on mobile", {
+        ...context,
+        workspacePath,
+      });
+    },
+    [workspacePath],
+  );
 
   const openFileLink = useCallback(
     async (rawPath: string) => {
@@ -180,6 +197,11 @@ export function useFileLinkOpener(
         ...(fileLocation.line !== null ? { line: fileLocation.line } : {}),
         ...(fileLocation.column !== null ? { column: fileLocation.column } : {}),
       };
+
+      if (mobilePlatform) {
+        reportMobileOpenUnavailable({ rawPath, resolvedPath });
+        return;
+      }
 
       try {
         if (!canOpenTarget(target)) {
@@ -224,7 +246,14 @@ export function useFileLinkOpener(
         });
       }
     },
-    [openTargets, reportOpenError, selectedOpenAppId, workspacePath],
+    [
+      mobilePlatform,
+      openTargets,
+      reportMobileOpenUnavailable,
+      reportOpenError,
+      selectedOpenAppId,
+      workspacePath,
+    ],
   );
 
   const showFileLinkMenu = useCallback(
@@ -251,61 +280,77 @@ export function useFileLinkOpener(
             : appName
               ? `Open in ${appName}`
               : "Set app name in Settings";
-      const items = [
-        await MenuItem.new({
-          text: openLabel,
-          enabled: canOpen,
-          action: async () => {
-            await openFileLink(rawPath);
-          },
-        }),
-        ...(target.kind === "finder"
-          ? []
-          : [
-              await MenuItem.new({
-                text: revealInFileManagerLabel(),
-                action: async () => {
-                  try {
-                    await revealItemInDir(resolvedPath);
-                  } catch (error) {
-                    reportOpenError(error, {
-                      rawPath,
-                      resolvedPath,
-                      workspacePath,
-                      targetId: target.id,
-                      targetKind: "finder",
-                      targetAppName: null,
-                      targetCommand: null,
-                    });
-                  }
-                },
-              }),
-            ]),
-        await MenuItem.new({
-          text: "Download Linked File",
-          enabled: false,
-        }),
-        await MenuItem.new({
-          text: "Copy Link",
-          action: async () => {
-            const link = toFileUrl(resolvedPath, fileLocation.line, fileLocation.column);
-            try {
-              await navigator.clipboard.writeText(link);
-            } catch {
-              // Clipboard failures are non-fatal here.
-            }
-          },
-        }),
-        await PredefinedMenuItem.new({ item: "Separator" }),
-        await PredefinedMenuItem.new({ item: "Services" }),
-      ];
+      const copyLinkItem = await MenuItem.new({
+        text: "Copy Link",
+        action: async () => {
+          const link = toFileUrl(resolvedPath, fileLocation.line, fileLocation.column);
+          try {
+            await navigator.clipboard.writeText(link);
+          } catch {
+            // Clipboard failures are non-fatal here.
+          }
+        },
+      });
+      const items = mobilePlatform
+        ? [
+            await MenuItem.new({
+              text: "Opening linked files is unavailable on mobile",
+              enabled: false,
+            }),
+            copyLinkItem,
+          ]
+        : [
+            await MenuItem.new({
+              text: openLabel,
+              enabled: canOpen,
+              action: async () => {
+                await openFileLink(rawPath);
+              },
+            }),
+            ...(target.kind === "finder"
+              ? []
+              : [
+                  await MenuItem.new({
+                    text: revealInFileManagerLabel(),
+                    action: async () => {
+                      try {
+                        await revealItemInDir(resolvedPath);
+                      } catch (error) {
+                        reportOpenError(error, {
+                          rawPath,
+                          resolvedPath,
+                          workspacePath,
+                          targetId: target.id,
+                          targetKind: "finder",
+                          targetAppName: null,
+                          targetCommand: null,
+                        });
+                      }
+                    },
+                  }),
+                ]),
+            await MenuItem.new({
+              text: "Download Linked File",
+              enabled: false,
+            }),
+            copyLinkItem,
+            await PredefinedMenuItem.new({ item: "Separator" }),
+            await PredefinedMenuItem.new({ item: "Services" }),
+          ];
 
       const menu = await Menu.new({ items });
       const window = getCurrentWindow();
       const position = new LogicalPosition(event.clientX, event.clientY);
       await menu.popup(position, window);
     },
-    [openFileLink, openTargets, reportOpenError, selectedOpenAppId, workspacePath],
+    [
+      mobilePlatform,
+      openFileLink,
+      openTargets,
+      reportOpenError,
+      selectedOpenAppId,
+      workspacePath,
+    ],
   );
 
   return { openFileLink, showFileLinkMenu };

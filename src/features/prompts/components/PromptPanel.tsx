@@ -20,6 +20,7 @@ import MoreHorizontal from "lucide-react/dist/esm/icons/more-horizontal";
 import Plus from "lucide-react/dist/esm/icons/plus";
 import ScrollText from "lucide-react/dist/esm/icons/scroll-text";
 import Search from "lucide-react/dist/esm/icons/search";
+import { isMobilePlatform } from "../../../utils/platformPaths";
 
 type PromptPanelProps = {
   prompts: CustomPromptOption[];
@@ -94,6 +95,9 @@ export function PromptPanel({
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const highlightTimer = useRef<number | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
+  const mobilePlatform = isMobilePlatform();
+  const canRevealWorkspacePrompts = Boolean(workspacePath) && !mobilePlatform;
+  const canRevealGeneralPromptFolder = canRevealGeneralPrompts && !mobilePlatform;
 
   const showError = (error: unknown) => {
     window.alert(error instanceof Error ? error.message : String(error));
@@ -535,7 +539,7 @@ export function PromptPanel({
                 <div className="prompt-empty-title">No workspace prompts yet</div>
                 <div className="prompt-empty-subtitle">
                   Create one here or drop a .md file into the{" "}
-                  {workspacePath ? (
+                  {canRevealWorkspacePrompts ? (
                     <button
                       type="button"
                       className="prompt-empty-link"
@@ -548,7 +552,7 @@ export function PromptPanel({
                       workspace prompts folder
                     </span>
                   )}
-                  .
+                  .{mobilePlatform ? " Folder reveal is available on desktop only." : ""}
                 </div>
               </div>
             </div>
@@ -578,7 +582,7 @@ export function PromptPanel({
                 <div className="prompt-empty-title">No general prompts yet</div>
                 <div className="prompt-empty-subtitle">
                   Create one here or drop a .md file into{" "}
-                  {canRevealGeneralPrompts ? (
+                  {canRevealGeneralPromptFolder ? (
                     <button
                       type="button"
                       className="prompt-empty-link"
@@ -591,7 +595,7 @@ export function PromptPanel({
                       CODEX_HOME/prompts
                     </span>
                   )}
-                  .
+                  .{mobilePlatform ? " Folder reveal is available on desktop only." : ""}
                 </div>
               </div>
             </div>
