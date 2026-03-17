@@ -24,11 +24,12 @@ hooks:
     git fetch --all --prune
     git checkout daily || git checkout -b daily origin/daily
     git pull --ff-only origin daily
+    ./scripts/bootstrap-worker.sh
 agent:
   max_concurrent_agents: 1
   max_turns: 6
 codex:
-  command: /opt/homebrew/bin/codex --config shell_environment_policy.inherit=all app-server
+  command: codex --config shell_environment_policy.inherit=all app-server
   approval_policy: never
   thread_sandbox: danger-full-access
   turn_sandbox_policy:
@@ -102,7 +103,7 @@ CodexMonitor-specific constraints:
 
 When implementation is complete:
 1. Summarize the code changes clearly.
-2. Summarize validation that actually ran.
+2. Summarize validation that actually ran and list any blocked required checks separately.
 3. Push the branch.
 4. Open or update a PR targeting `daily`.
 5. Move the issue to `In Review`.

@@ -119,6 +119,8 @@ Do not reintroduce duplicated modal/toast/panel/popover shell styling in feature
 
 ## Validation Matrix
 
+Run `npm run validate:preflight` before implementation. If the issue needs a validation capability that preflight reports as blocked, record that explicitly in the Linear issue update and PR summary.
+
 Run validations based on touched areas:
 
 - Always: `npm run typecheck`
@@ -132,6 +134,7 @@ Core local commands (keep these inline for daily use):
 
 ```bash
 npm install
+npm run validate:preflight
 npm run doctor:strict
 npm run tauri:dev
 npm run test

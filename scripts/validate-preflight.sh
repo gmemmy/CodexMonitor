@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -u
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
 STRICT=0
 if [ "${1:-}" = "--strict" ]; then
   STRICT=1
@@ -23,6 +26,10 @@ resolve_version() {
   if has_cmd "$cmd"; then
     "$@" 2>/dev/null | head -n 1
   fi
+}
+
+workspace_bin_path() {
+  printf "%s/node_modules/.bin/%s" "$ROOT_DIR" "$1"
 }
 
 node_status="missing"
@@ -74,6 +81,24 @@ if has_cmd cmake; then
   cmake_details="$(resolve_version cmake cmake --version || echo unknown)"
 fi
 
+workspace_deps_status="missing"
+workspace_deps_details="run npm ci"
+missing_workspace_bins=""
+for workspace_bin in tsc vitest tauri; do
+  if [ ! -x "$(workspace_bin_path "$workspace_bin")" ]; then
+    if [ -n "$missing_workspace_bins" ]; then
+      missing_workspace_bins="$missing_workspace_bins, "
+    fi
+    missing_workspace_bins="${missing_workspace_bins}${workspace_bin}"
+  fi
+done
+if [ -z "$missing_workspace_bins" ]; then
+  workspace_deps_status="ok"
+  workspace_deps_details="workspace npm dependencies installed"
+else
+  workspace_deps_details="run npm ci (missing: $missing_workspace_bins)"
+fi
+
 xcodebuild_status="n/a"
 xcodebuild_details="non-macOS host"
 xcrun_status="n/a"
@@ -105,15 +130,15 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 doctor_capability="blocked"
-doctor_details="requires npm + cmake"
-if [ "$npm_status" = "ok" ] && [ "$cmake_status" = "ok" ]; then
+doctor_details="requires node + npm + cmake"
+if [ "$node_status" = "ok" ] && [ "$npm_status" = "ok" ] && [ "$cmake_status" = "ok" ]; then
   doctor_capability="ok"
   doctor_details="npm run doctor:strict can run"
 fi
 
 frontend_capability="blocked"
-frontend_details="requires node + npm"
-if [ "$node_status" = "ok" ] && [ "$npm_status" = "ok" ]; then
+frontend_details="requires node + npm + workspace npm dependencies"
+if [ "$node_status" = "ok" ] && [ "$npm_status" = "ok" ] && [ "$workspace_deps_status" = "ok" ]; then
   frontend_capability="ok"
   frontend_details="targeted vitest + typecheck available"
 fi
@@ -126,15 +151,15 @@ if [ "$cargo_status" = "ok" ] && [ "$rustc_status" = "ok" ]; then
 fi
 
 desktop_capability="blocked"
-desktop_details="requires frontend + rust toolchain"
-if [ "$frontend_capability" = "ok" ] && [ "$rust_capability" = "ok" ]; then
+desktop_details="requires doctor_strict + workspace npm dependencies + rust toolchain"
+if [ "$doctor_capability" = "ok" ] && [ "$frontend_capability" = "ok" ] && [ "$rust_capability" = "ok" ]; then
   desktop_capability="ok"
   desktop_details="tauri desktop validation available"
 fi
 
 ios_capability="blocked"
-ios_details="requires macOS + xcodebuild + xcrun devicectl + rust"
-if [ "$xcodebuild_status" = "ok" ] && [ "$xcrun_status" = "ok" ] && [ "$devicectl_status" = "ok" ] && [ "$rust_capability" = "ok" ]; then
+ios_details="requires desktop_tauri + macOS + xcodebuild + xcrun devicectl"
+if [ "$desktop_capability" = "ok" ] && [ "$xcodebuild_status" = "ok" ] && [ "$xcrun_status" = "ok" ] && [ "$devicectl_status" = "ok" ]; then
   ios_capability="ok"
   ios_details="device/simulator build tooling available"
 fi
@@ -148,6 +173,7 @@ print_status "rustc" "$rustc_status" "$rustc_details"
 print_status "codex" "$codex_status" "$codex_details"
 print_status "git" "$git_status" "$git_details"
 print_status "cmake" "$cmake_status" "$cmake_details"
+print_status "workspace_npm_deps" "$workspace_deps_status" "$workspace_deps_details"
 print_status "xcodebuild" "$xcodebuild_status" "$xcodebuild_details"
 print_status "xcrun" "$xcrun_status" "$xcrun_details"
 print_status "devicectl" "$devicectl_status" "$devicectl_details"

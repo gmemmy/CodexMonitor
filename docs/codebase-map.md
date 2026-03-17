@@ -28,6 +28,7 @@ If a behavior must work in both app and daemon, implement it in `src-tauri/src/s
 | Need | Primary files to edit |
 | --- | --- |
 | Personal shipping workflow, branch strategy, PR target, or validation levels | `README.md` |
+| Symphony worker bootstrap, validation preflight, or PR validation reporting | `.mise.toml`, `README.md`, `WORKFLOW.md`, `scripts/bootstrap-worker.sh`, `scripts/run_symphony.sh`, `scripts/validate-preflight.sh`, `.github/pull_request_template.md` |
 | App-level UI composition/layout wiring | `src/App.tsx`, `src/features/app/components/AppLayout.tsx`, `src/features/app/bootstrap/*`, `src/features/app/orchestration/*`, `src/features/app/hooks/*` |
 | Add/change Tauri IPC methods used by frontend | `src/services/tauri.ts`, `src-tauri/src/lib.rs`, matching backend adapter module |
 | Add/change app-server event handling in UI | `src/services/events.ts`, `src/features/app/hooks/useAppServerEvents.ts`, `src/utils/appServerEvents.ts`, `src/features/threads/utils/threadNormalize.ts` |
