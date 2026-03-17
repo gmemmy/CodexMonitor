@@ -6,7 +6,6 @@ tracker:
   active_states:
     - Todo
     - In Progress
-    - In Review
     - Rework
   terminal_states:
     - Done
@@ -19,7 +18,8 @@ workspace:
   root: ~/.symphony/workspaces/codex-monitor
 hooks:
   after_create: |
-    git clone --origin origin https://github.com/gmemmy/CodexMonitor.git .
+    git clone --origin origin --branch daily file:///Applications/work/projects/personal/codex-monitor .
+    git remote set-url origin https://github.com/gmemmy/CodexMonitor.git
     git remote add upstream https://github.com/Dimillian/CodexMonitor.git || true
     ./scripts/bootstrap-worker.sh
     ./scripts/prepare-issue-workspace.sh daily
