@@ -513,6 +513,33 @@ describe("useWorkspaces remote sync state", () => {
     expect(result.current.remoteWorkspaceSyncState).toBe("fresh");
     expect(result.current.lastRemoteSyncFailure).toBeNull();
   });
+
+  it("allows a remote handoff to clear the active workspace when the target is missing", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    listWorkspacesMock.mockResolvedValue([workspaceOne]);
+
+    const { result } = renderHook(() =>
+      useWorkspaces({
+        appSettings: {
+          backendMode: "remote",
+        } as any,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      result.current.replaceWorkspaceState([workspaceTwo], {
+        activeWorkspaceId: null,
+        allowMissingActiveWorkspace: true,
+      });
+    });
+
+    expect(result.current.workspaces).toEqual([workspaceTwo]);
+    expect(result.current.activeWorkspaceId).toBeNull();
+  });
 });
 
 describe("useWorkspaces.addWorkspacesFromPaths", () => {

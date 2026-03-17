@@ -10,6 +10,9 @@ type UseMobileServerSetupParams = {
   appSettingsLoading: boolean;
   queueSaveSettings: (next: AppSettings) => Promise<AppSettings>;
   refreshWorkspaces: () => Promise<unknown>;
+  applyDesktopMobileHandoffPayload?: (
+    payload: string,
+  ) => Promise<{ ok: boolean; message: string }>;
 };
 
 type UseMobileServerSetupResult = {
@@ -169,6 +172,7 @@ export function useMobileServerSetup({
   appSettingsLoading,
   queueSaveSettings,
   refreshWorkspaces,
+  applyDesktopMobileHandoffPayload,
 }: UseMobileServerSetupParams): UseMobileServerSetupResult {
   const isMobileRuntime = useMemo(() => isMobilePlatform(), []);
 
@@ -178,6 +182,8 @@ export function useMobileServerSetup({
   const [checking, setChecking] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusError, setStatusError] = useState(false);
+  const [handoffPayloadDraft, setHandoffPayloadDraft] = useState("");
+  const [handoffApplying, setHandoffApplying] = useState(false);
   const [mobileServerReady, setMobileServerReady] = useState(!isMobileRuntime);
   const [setupWizardDismissed, setSetupWizardDismissed] = useState(false);
   const latestSettingsRef = useRef(appSettings);
@@ -375,6 +381,53 @@ export function useMobileServerSetup({
     runConnectivityCheck,
   ]);
 
+  const onApplyHandoff = useCallback(() => {
+    void (async () => {
+      if (!isMobileRuntime || handoffApplying) {
+        return;
+      }
+      const payload = handoffPayloadDraft.trim();
+      if (!payload) {
+        setStatusError(true);
+        setStatusMessage("Paste a desktop handoff payload first.");
+        return;
+      }
+      if (!applyDesktopMobileHandoffPayload) {
+        setStatusError(true);
+        setStatusMessage("Desktop handoff is not available in this build.");
+        return;
+      }
+
+      setHandoffApplying(true);
+      setStatusError(false);
+      setStatusMessage(null);
+      try {
+        const result = await applyDesktopMobileHandoffPayload(payload);
+        setStatusError(!result.ok);
+        setStatusMessage(result.message);
+        if (result.ok) {
+          setMobileServerReady(true);
+          setSetupWizardDismissed(false);
+          setHandoffPayloadDraft("");
+        }
+      } catch (error) {
+        setStatusError(true);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to apply the desktop handoff payload.",
+        );
+      } finally {
+        setHandoffApplying(false);
+      }
+    })();
+  }, [
+    applyDesktopMobileHandoffPayload,
+    handoffApplying,
+    handoffPayloadDraft,
+    isMobileRuntime,
+  ]);
+
   useEffect(() => {
     if (!isMobileRuntime || appSettingsLoading || busy) {
       return;
@@ -484,6 +537,8 @@ export function useMobileServerSetup({
       remoteTokenDraft,
       busy,
       checking,
+      handoffPayloadDraft,
+      handoffApplying,
       statusMessage,
       statusError,
       onClose: () => {
@@ -491,7 +546,9 @@ export function useMobileServerSetup({
       },
       onRemoteHostChange: setRemoteHostDraft,
       onRemoteTokenChange: setRemoteTokenDraft,
+      onHandoffPayloadChange: setHandoffPayloadDraft,
       onConnectTest,
+      onApplyHandoff,
     },
     handleMobileConnectSuccess,
   };

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AppSettings,
+  DesktopMobileHandoffPayloadV1,
   TailscaleDaemonCommandPreview,
   TailscaleStatus,
   TcpDaemonStatus,
@@ -21,6 +22,7 @@ type UseSettingsServerSectionArgs = {
   appSettings: AppSettings;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   onMobileConnectSuccess?: () => Promise<void> | void;
+  onCreateDesktopMobileHandoffPayload?: () => DesktopMobileHandoffPayloadV1;
   onSelectSavedRemoteBackend?: (id: string) => Promise<string>;
 };
 
@@ -42,6 +44,9 @@ export type SettingsServerSectionProps = {
   remoteSwitchingId: string | null;
   remoteStatusText: string | null;
   remoteStatusError: boolean;
+  desktopHandoffCopyBusy: boolean;
+  desktopHandoffStatusText: string | null;
+  desktopHandoffStatusError: boolean;
   remoteNameError: string | null;
   remoteHostError: string | null;
   remoteNameDraft: string;
@@ -62,6 +67,7 @@ export type SettingsServerSectionProps = {
   onCommitRemoteName: () => Promise<void>;
   onCommitRemoteHost: () => Promise<void>;
   onCommitRemoteToken: () => Promise<void>;
+  onCopyDesktopMobileHandoffPayload: () => void;
   onSelectRemoteBackend: (id: string) => Promise<void>;
   onAddRemoteBackend: (draft: AddRemoteBackendDraft) => Promise<void>;
   onMoveRemoteBackend: (id: string, direction: "up" | "down") => Promise<void>;
@@ -148,6 +154,7 @@ export const useSettingsServerSection = ({
   appSettings,
   onUpdateAppSettings,
   onMobileConnectSuccess,
+  onCreateDesktopMobileHandoffPayload,
   onSelectSavedRemoteBackend,
 }: UseSettingsServerSectionArgs): SettingsServerSectionProps => {
   const initialActiveRemoteBackend = getActiveRemoteBackend(appSettings);
@@ -159,6 +166,9 @@ export const useSettingsServerSection = ({
   const [remoteSwitchingId, setRemoteSwitchingId] = useState<string | null>(null);
   const [remoteNameError, setRemoteNameError] = useState<string | null>(null);
   const [remoteHostError, setRemoteHostError] = useState<string | null>(null);
+  const [desktopHandoffCopyBusy, setDesktopHandoffCopyBusy] = useState(false);
+  const [desktopHandoffStatusText, setDesktopHandoffStatusText] = useState<string | null>(null);
+  const [desktopHandoffStatusError, setDesktopHandoffStatusError] = useState(false);
   const [tailscaleStatus, setTailscaleStatus] = useState<TailscaleStatus | null>(null);
   const [tailscaleStatusBusy, setTailscaleStatusBusy] = useState(false);
   const [tailscaleStatusError, setTailscaleStatusError] = useState<string | null>(null);
@@ -182,6 +192,14 @@ export const useSettingsServerSection = ({
     setRemoteStatusText(message);
     setRemoteStatusError(isError);
   }, []);
+
+  const setDesktopHandoffStatus = useCallback(
+    (message: string | null, isError = false) => {
+      setDesktopHandoffStatusText(message);
+      setDesktopHandoffStatusError(isError);
+    },
+    [],
+  );
 
   useEffect(() => {
     latestSettingsRef.current = appSettings;
@@ -550,6 +568,39 @@ export const useSettingsServerSection = ({
     })();
   };
 
+  const handleCopyDesktopMobileHandoffPayload = useCallback(() => {
+    void (async () => {
+      if (desktopHandoffCopyBusy) {
+        return;
+      }
+      setDesktopHandoffCopyBusy(true);
+      setDesktopHandoffStatus(null);
+      try {
+        if (!onCreateDesktopMobileHandoffPayload) {
+          throw new Error("Desktop handoff is not available in this view.");
+        }
+        const clipboard = typeof navigator === "undefined" ? null : navigator.clipboard;
+        if (!clipboard?.writeText) {
+          throw new Error("Clipboard access is unavailable in this environment.");
+        }
+        const payload = onCreateDesktopMobileHandoffPayload();
+        await clipboard.writeText(JSON.stringify(payload, null, 2));
+        setDesktopHandoffStatus("Desktop handoff payload copied to the clipboard.");
+      } catch (error) {
+        setDesktopHandoffStatus(
+          formatErrorMessage(error, "Could not copy the desktop handoff payload."),
+          true,
+        );
+      } finally {
+        setDesktopHandoffCopyBusy(false);
+      }
+    })();
+  }, [
+    desktopHandoffCopyBusy,
+    onCreateDesktopMobileHandoffPayload,
+    setDesktopHandoffStatus,
+  ]);
+
   useEffect(() => {
     if (!mobilePlatform) {
       return;
@@ -670,6 +721,9 @@ export const useSettingsServerSection = ({
     remoteSwitchingId,
     remoteStatusText,
     remoteStatusError,
+    desktopHandoffCopyBusy,
+    desktopHandoffStatusText,
+    desktopHandoffStatusError,
     remoteNameError,
     remoteHostError,
     remoteNameDraft,
@@ -690,6 +744,7 @@ export const useSettingsServerSection = ({
     onCommitRemoteName: handleCommitRemoteName,
     onCommitRemoteHost: handleCommitRemoteHost,
     onCommitRemoteToken: handleCommitRemoteToken,
+    onCopyDesktopMobileHandoffPayload: handleCopyDesktopMobileHandoffPayload,
     onSelectRemoteBackend: handleSelectRemoteBackend,
     onAddRemoteBackend: handleAddRemoteBackend,
     onMoveRemoteBackend: handleMoveRemoteBackend,
