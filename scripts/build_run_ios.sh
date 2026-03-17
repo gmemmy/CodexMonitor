@@ -7,6 +7,9 @@ cd "$ROOT_DIR"
 SIMULATOR_NAME="${SIMULATOR_NAME:-iPhone Air}"
 TARGET="${TARGET:-aarch64-sim}"
 BUNDLE_ID="${BUNDLE_ID:-}"
+REMOTE_HOST="${REMOTE_HOST:-}"
+REMOTE_TOKEN="${REMOTE_TOKEN:-}"
+REMOTE_NAME="${REMOTE_NAME:-Primary remote}"
 SKIP_BUILD=0
 CLEAN_BUILD=1
 IOS_APP_ICONSET_DIR="src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"
@@ -23,6 +26,9 @@ Options:
   --simulator <name>   Simulator name (default: "iPhone Air")
   --target <target>    Tauri iOS target (default: "aarch64-sim")
   --bundle-id <id>     Bundle id to launch (default: resolved from Tauri iOS config)
+  --remote-host <hp>   Seed simulator app with this remote host before launch
+  --remote-token <t>   Seed simulator app with this remote token before launch
+  --remote-name <name> Saved remote display name (default: "Primary remote")
   --skip-build         Skip the build and only install + launch the existing app
   --no-clean           Do not remove stale src-tauri/gen/apple/build before build
   -h, --help           Show this help
@@ -41,6 +47,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --bundle-id)
       BUNDLE_ID="${2:-}"
+      shift 2
+      ;;
+    --remote-host)
+      REMOTE_HOST="${2:-}"
+      shift 2
+      ;;
+    --remote-token)
+      REMOTE_TOKEN="${2:-}"
+      shift 2
+      ;;
+    --remote-name)
+      REMOTE_NAME="${2:-}"
       shift 2
       ;;
     --skip-build)
@@ -177,6 +195,18 @@ open -a Simulator || true
 xcrun simctl boot "$SIMULATOR_NAME" >/dev/null 2>&1 || true
 xcrun simctl bootstatus booted -b >/dev/null 2>&1 || true
 xcrun simctl install booted "$APP_PATH"
+if [[ -n "$REMOTE_HOST" || -n "$REMOTE_TOKEN" ]]; then
+  if [[ -z "$REMOTE_HOST" || -z "$REMOTE_TOKEN" ]]; then
+    echo "Both --remote-host and --remote-token are required when seeding simulator settings." >&2
+    exit 1
+  fi
+  "$ROOT_DIR/scripts/seed_ios_simulator_remote.sh" \
+    --simulator "$SIMULATOR_NAME" \
+    --bundle-id "$BUNDLE_ID" \
+    --host "$REMOTE_HOST" \
+    --token "$REMOTE_TOKEN" \
+    --name "$REMOTE_NAME"
+fi
 xcrun simctl terminate booted "$BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl launch booted "$BUNDLE_ID"
 
