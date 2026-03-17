@@ -74,6 +74,12 @@ Check local validation capabilities:
 npm run validate:preflight
 ```
 
+Bootstrap a Symphony worker clone with the repo-managed toolchain and workspace deps:
+
+```bash
+./scripts/bootstrap-worker.sh
+```
+
 Run in dev mode:
 
 ```bash
@@ -259,11 +265,41 @@ Note: `npm run build` also runs `tsc` before bundling the frontend.
 Recommended validation commands:
 
 ```bash
+npm run validate:preflight
 npm run lint
 npm run test
 npm run typecheck
 cd src-tauri && cargo check
 ```
+
+`npm run validate:preflight` reports whether the current shell can actually run frontend, Rust/Tauri, and iOS/device validation. In a fresh worker clone it should be the first command before implementation, and any blocked required checks should be carried into the Linear update and PR summary.
+
+## Symphony Worker Bootstrap
+
+CodexMonitor uses [`.mise.toml`](.mise.toml) as the repo-level worker toolchain definition for Symphony-managed issue work. The supported bootstrap path is:
+
+```bash
+# prerequisite: install mise and ensure `command -v mise` succeeds
+./scripts/bootstrap-worker.sh
+./scripts/run_symphony.sh
+```
+
+What `./scripts/bootstrap-worker.sh` does:
+
+- trusts the repo `.mise.toml` before using it
+- activates the repo toolchain definition with `mise` (system `node`/`cmake`, repo-managed `rust`)
+- installs workspace npm dependencies with `npm ci` when they are missing
+- prints the current `npm run validate:preflight` capability report
+
+What it does not install:
+
+- missing system `node`/`npm` or `cmake` on hosts where they are absent
+- `codex` CLI
+- `git`
+- Apple/Xcode tooling required for macOS+iOS validation
+- Linux desktop system packages such as WebKit/GTK development headers
+
+Those remaining requirements stay explicit in the preflight output so frontend-only work can proceed without overstating Rust/Tauri or device validation readiness.
 
 ## Personal Shipping Workflow
 
@@ -305,17 +341,18 @@ git switch -c fix/cod-123-short-slug
 1. Confirm the current branch is `daily` and the worktree is clean.
 2. Move the Linear issue from `Todo` to `In Progress`.
 3. Create a branch from `daily`.
-4. Keep the change scoped to that issue only.
-5. Run the smallest validation level that matches the touched area.
-6. Push the branch and open a PR targeting `daily`.
-7. Post a short validation summary on the Linear issue and move it to `In Review`.
-8. After merge, return to `daily` before starting the next issue.
+4. Run `npm run validate:preflight` before implementation and note any blocked required checks in the Linear issue.
+5. Keep the change scoped to that issue only.
+6. Run the smallest validation level that matches the touched area.
+7. Push the branch and open a PR targeting `daily`.
+8. Post a short validation summary on the Linear issue, list any blocked required checks separately, and move it to `In Review`.
+9. After merge, return to `daily` before starting the next issue.
 
 ### PR Defaults
 
 - Base branch: `daily`
 - Head branch: the issue branch you created from `daily`
-- PR body: link the Linear issue, summarize the scoped change, and list the validation that actually ran
+- PR body: link the Linear issue, summarize the scoped change, list the validation that actually ran, and list any blocked required checks from `npm run validate:preflight` separately
 
 Create the PR from the issue branch with:
 
