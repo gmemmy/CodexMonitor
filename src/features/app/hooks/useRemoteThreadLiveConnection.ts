@@ -32,6 +32,7 @@ type ReconnectOptions = {
 
 type UseRemoteThreadLiveConnectionOptions = {
   backendMode: string;
+  suspendRemoteSync?: boolean;
   activeWorkspace: WorkspaceInfo | null;
   activeThreadId: string | null;
   activeThreadHasLocalSnapshot?: boolean;
@@ -89,6 +90,7 @@ function isWindowFocused() {
 
 export function useRemoteThreadLiveConnection({
   backendMode,
+  suspendRemoteSync = false,
   activeWorkspace,
   activeThreadId,
   activeThreadHasLocalSnapshot = true,
@@ -111,6 +113,7 @@ export function useRemoteThreadLiveConnection({
   const [lastFailure, setLastFailure] = useState<RemoteSyncFailure | null>(null);
 
   const backendModeRef = useRef(backendMode);
+  const suspendRemoteSyncRef = useRef(suspendRemoteSync);
   const activeWorkspaceRef = useRef(activeWorkspace);
   const activeThreadIdRef = useRef(activeThreadId);
   const activeThreadHasLocalSnapshotRef = useRef(activeThreadHasLocalSnapshot);
@@ -139,6 +142,7 @@ export function useRemoteThreadLiveConnection({
 
   useEffect(() => {
     backendModeRef.current = backendMode;
+    suspendRemoteSyncRef.current = suspendRemoteSync;
     activeWorkspaceRef.current = activeWorkspace;
     activeThreadIdRef.current = activeThreadId;
     activeThreadHasLocalSnapshotRef.current = activeThreadHasLocalSnapshot;
@@ -147,6 +151,7 @@ export function useRemoteThreadLiveConnection({
     reconnectWorkspaceRef.current = reconnectWorkspace;
   }, [
     backendMode,
+    suspendRemoteSync,
     activeWorkspace,
     activeThreadId,
     activeThreadHasLocalSnapshot,
@@ -282,7 +287,7 @@ export function useRemoteThreadLiveConnection({
 
   useEffect(() => {
     clearSyncFailure();
-  }, [activeWorkspaceId, activeThreadId, backendMode, clearSyncFailure]);
+  }, [activeWorkspaceId, activeThreadId, backendMode, suspendRemoteSync, clearSyncFailure]);
 
   useEffect(() => {
     const previous = previousWorkspaceConnectionRef.current;
@@ -313,6 +318,7 @@ export function useRemoteThreadLiveConnection({
       options?: ReconnectOptions,
     ): Promise<boolean> => {
       if (
+        suspendRemoteSyncRef.current ||
         backendModeRef.current !== "remote" ||
         !workspaceId ||
         !threadId ||
@@ -461,7 +467,7 @@ export function useRemoteThreadLiveConnection({
 
   useEffect(() => {
     const nextKey =
-      backendMode === "remote" && activeWorkspaceId && activeThreadId
+      !suspendRemoteSync && backendMode === "remote" && activeWorkspaceId && activeThreadId
         ? keyForThread(activeWorkspaceId, activeThreadId)
         : null;
     desiredSubscriptionKeyRef.current = nextKey;
@@ -501,6 +507,7 @@ export function useRemoteThreadLiveConnection({
     activeWorkspaceConnected,
     activeWorkspaceId,
     backendMode,
+    suspendRemoteSync,
     reconcileDisconnectedState,
     reconnectLive,
     unsubscribeByKey,
@@ -516,7 +523,7 @@ export function useRemoteThreadLiveConnection({
       const activeWorkspaceEntry = activeWorkspaceRef.current;
       const activeWorkspaceId = activeWorkspaceEntry?.id ?? null;
       const selectedThreadId = activeThreadIdRef.current;
-      if (!activeWorkspaceId || !selectedThreadId) {
+      if (suspendRemoteSyncRef.current || !activeWorkspaceId || !selectedThreadId) {
         return;
       }
       if (event.workspace_id !== activeWorkspaceId) {
@@ -606,11 +613,12 @@ export function useRemoteThreadLiveConnection({
     let unlistenWindowFocus: (() => void) | null = null;
     let unlistenWindowBlur: (() => void) | null = null;
     let didCleanup = false;
+    const ignoreDetachedEventsUntil = ignoreDetachedEventsUntilRef.current;
 
     const reconnectActiveThread = () => {
       const workspaceId = activeWorkspaceRef.current?.id ?? null;
       const threadId = activeThreadIdRef.current;
-      if (!workspaceId || !threadId) {
+      if (suspendRemoteSyncRef.current || !workspaceId || !threadId) {
         return;
       }
       void reconnectLive(workspaceId, threadId, {
@@ -695,7 +703,7 @@ export function useRemoteThreadLiveConnection({
       window.removeEventListener("blur", handleBlur);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       desiredSubscriptionKeyRef.current = null;
-      ignoreDetachedEventsUntilRef.current.clear();
+      ignoreDetachedEventsUntil.clear();
       const currentKey = activeSubscriptionKeyRef.current;
       if (currentKey) {
         activeSubscriptionKeyRef.current = null;

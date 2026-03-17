@@ -59,6 +59,7 @@ export type SettingsViewProps = {
   onTestNotificationSound: () => void;
   onTestSystemNotification: () => void;
   onMobileConnectSuccess?: () => Promise<void> | void;
+  onSelectSavedRemoteBackend?: (id: string) => Promise<string>;
   dictationModelStatus?: DictationModelStatus | null;
   onDownloadDictationModel?: () => void;
   onCancelDictationDownload?: () => void;
@@ -91,6 +92,7 @@ export function SettingsView({
   onTestNotificationSound,
   onTestSystemNotification,
   onMobileConnectSuccess,
+  onSelectSavedRemoteBackend,
   dictationModelStatus,
   onDownloadDictationModel,
   onCancelDictationDownload,
@@ -129,6 +131,7 @@ export function SettingsView({
     onDeleteWorkspaceGroup,
     onAssignWorkspaceGroup,
     onMobileConnectSuccess,
+    onSelectSavedRemoteBackend,
     dictationModelStatus,
     onDownloadDictationModel,
     onCancelDictationDownload,

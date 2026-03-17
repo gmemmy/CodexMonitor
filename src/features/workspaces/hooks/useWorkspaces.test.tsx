@@ -337,6 +337,36 @@ describe("useWorkspaces remote sync state", () => {
     expect(result.current.remoteWorkspaceSyncState).toBe("fresh");
     expect(result.current.lastRemoteSyncFailure).toBeNull();
   });
+
+  it("replaces workspace state during a remote handoff and clears stale sync failures", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    listWorkspacesMock.mockRejectedValue(new Error("remote backend disconnected"));
+
+    const { result } = renderHook(() =>
+      useWorkspaces({
+        appSettings: {
+          backendMode: "remote",
+        } as any,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.remoteWorkspaceSyncState).toBe("stale");
+
+    act(() => {
+      result.current.replaceWorkspaceState([workspaceTwo], {
+        activeWorkspaceId: workspaceTwo.id,
+      });
+    });
+
+    expect(result.current.workspaces).toEqual([workspaceTwo]);
+    expect(result.current.activeWorkspaceId).toBe(workspaceTwo.id);
+    expect(result.current.remoteWorkspaceSyncState).toBe("fresh");
+    expect(result.current.lastRemoteSyncFailure).toBeNull();
+  });
 });
 
 describe("useWorkspaces.addWorkspacesFromPaths", () => {

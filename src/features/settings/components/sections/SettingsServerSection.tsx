@@ -29,6 +29,7 @@ type SettingsServerSectionProps = {
   mobileConnectStatusError: boolean;
   remoteBackends: AppSettings["remoteBackends"];
   activeRemoteBackendId: string | null;
+  remoteSwitchingId: string | null;
   remoteStatusText: string | null;
   remoteStatusError: boolean;
   remoteNameError: string | null;
@@ -73,6 +74,7 @@ export function SettingsServerSection({
   mobileConnectStatusError,
   remoteBackends,
   activeRemoteBackendId,
+  remoteSwitchingId,
   remoteStatusText,
   remoteStatusError,
   remoteNameError,
@@ -221,6 +223,7 @@ export function SettingsServerSection({
               <div className="settings-mobile-remotes" role="list" aria-label="Saved remotes">
                 {remoteBackends.map((entry, index) => {
                   const isActive = entry.id === activeRemoteBackendId;
+                  const isSwitching = entry.id === remoteSwitchingId;
                   return (
                     <div
                       className={`settings-mobile-remote${isActive ? " is-active" : ""}`}
@@ -247,10 +250,10 @@ export function SettingsServerSection({
                           onClick={() => {
                             void onSelectRemoteBackend(entry.id);
                           }}
-                          disabled={isActive}
+                          disabled={isActive || remoteSwitchingId !== null}
                           aria-label={`Use ${entry.name} remote`}
                         >
-                          {isActive ? "Using" : "Use"}
+                          {isSwitching ? "Switching..." : isActive ? "Using" : "Use"}
                         </button>
                         <button
                           type="button"
@@ -258,7 +261,7 @@ export function SettingsServerSection({
                           onClick={() => {
                             void onMoveRemoteBackend(entry.id, "up");
                           }}
-                          disabled={index === 0}
+                          disabled={index === 0 || remoteSwitchingId !== null}
                           aria-label={`Move ${entry.name} up`}
                         >
                           ↑
@@ -269,7 +272,9 @@ export function SettingsServerSection({
                           onClick={() => {
                             void onMoveRemoteBackend(entry.id, "down");
                           }}
-                          disabled={index === remoteBackends.length - 1}
+                          disabled={
+                            index === remoteBackends.length - 1 || remoteSwitchingId !== null
+                          }
                           aria-label={`Move ${entry.name} down`}
                         >
                           ↓
@@ -280,6 +285,7 @@ export function SettingsServerSection({
                           onClick={() => {
                             setPendingDeleteRemoteId(entry.id);
                           }}
+                          disabled={remoteSwitchingId !== null}
                           aria-label={`Delete ${entry.name}`}
                         >
                           Delete
@@ -294,6 +300,7 @@ export function SettingsServerSection({
                   type="button"
                   className="button settings-button-compact"
                   onClick={openAddRemoteModal}
+                  disabled={remoteSwitchingId !== null}
                 >
                   Add remote
                 </button>
@@ -317,6 +324,7 @@ export function SettingsServerSection({
                 className="settings-input settings-input--compact"
                 value={remoteNameDraft}
                 placeholder="My desktop"
+                disabled={remoteSwitchingId !== null}
                 onChange={(event) => onSetRemoteNameDraft(event.target.value)}
                 onBlur={() => {
                   void onCommitRemoteName();
@@ -357,6 +365,7 @@ export function SettingsServerSection({
               className="settings-input settings-input--compact"
               value={remoteHostDraft}
               placeholder="127.0.0.1:4732"
+              disabled={remoteSwitchingId !== null}
               onChange={(event) => onSetRemoteHostDraft(event.target.value)}
               onBlur={() => {
                 void onCommitRemoteHost();
@@ -374,6 +383,7 @@ export function SettingsServerSection({
               className="settings-input settings-input--compact"
               value={remoteTokenDraft}
               placeholder="Token (required)"
+              disabled={remoteSwitchingId !== null}
               onChange={(event) => onSetRemoteTokenDraft(event.target.value)}
               onBlur={() => {
                 void onCommitRemoteToken();
@@ -403,7 +413,7 @@ export function SettingsServerSection({
                 type="button"
                 className="button settings-button-compact"
                 onClick={onMobileConnectTest}
-                disabled={mobileConnectBusy}
+                disabled={mobileConnectBusy || remoteSwitchingId !== null}
               >
                 {mobileConnectBusy ? "Connecting..." : "Connect & test"}
               </button>

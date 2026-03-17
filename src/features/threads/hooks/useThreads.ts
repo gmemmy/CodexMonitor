@@ -845,6 +845,18 @@ export function useThreads({
     [archiveThread, unpinThread],
   );
 
+  const resetThreadState = useCallback(() => {
+    loadedThreadsRef.current = {};
+    replaceOnResumeRef.current = {};
+    pendingInterruptsRef.current = new Set();
+    detachedReviewStartedNoticeRef.current = new Set();
+    detachedReviewCompletedNoticeRef.current = new Set();
+    detachedReviewParentByChildRef.current = {};
+    subagentThreadByWorkspaceThreadRef.current = {};
+    cascadeArchiveSkipRef.current = {};
+    dispatch({ type: "resetState" });
+  }, []);
+
   return {
     activeThreadId,
     setActiveThreadId,
@@ -884,6 +896,7 @@ export function useThreads({
     listThreadsForWorkspace,
     refreshThread,
     resetWorkspaceThreads,
+    resetThreadState,
     loadOlderThreadsForWorkspace,
     sendUserMessage,
     sendUserMessageToThread,

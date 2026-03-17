@@ -6,6 +6,7 @@ const INITIAL_THREAD_LIST_MAX_PAGES = 6;
 type WorkspaceRestoreOptions = {
   workspaces: WorkspaceInfo[];
   hasLoaded: boolean;
+  suspend?: boolean;
   connectWorkspace: (workspace: WorkspaceInfo) => Promise<void>;
   listThreadsForWorkspaces: (
     workspaces: WorkspaceInfo[],
@@ -16,13 +17,14 @@ type WorkspaceRestoreOptions = {
 export function useWorkspaceRestore({
   workspaces,
   hasLoaded,
+  suspend = false,
   connectWorkspace,
   listThreadsForWorkspaces,
 }: WorkspaceRestoreOptions) {
   const restoredWorkspaces = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!hasLoaded) {
+    if (!hasLoaded || suspend) {
       return;
     }
     const pending = workspaces.filter(
@@ -53,5 +55,5 @@ export function useWorkspaceRestore({
         });
       }
     })();
-  }, [connectWorkspace, hasLoaded, listThreadsForWorkspaces, workspaces]);
+  }, [connectWorkspace, hasLoaded, listThreadsForWorkspaces, suspend, workspaces]);
 }
