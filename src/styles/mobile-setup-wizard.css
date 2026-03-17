@@ -108,6 +108,31 @@
   font-weight: 600;
 }
 
+.mobile-setup-wizard-divider {
+  height: 1px;
+  margin: 8px 0 2px;
+  background: color-mix(in srgb, var(--border-muted) 75%, transparent);
+}
+
+.mobile-setup-wizard-textarea {
+  min-height: 132px;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid var(--border-muted);
+  background: var(--surface-control);
+  color: var(--text-strong);
+  padding: 10px 11px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.mobile-setup-wizard-textarea:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(46, 170, 220, 0.14);
+}
+
 .mobile-setup-wizard-status {
   border-radius: 10px;
   border: 1px solid rgba(116, 198, 157, 0.4);

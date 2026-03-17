@@ -7,12 +7,16 @@ export type MobileServerSetupWizardProps = {
   remoteTokenDraft: string;
   busy: boolean;
   checking: boolean;
+  handoffPayloadDraft: string;
+  handoffApplying: boolean;
   statusMessage: string | null;
   statusError: boolean;
   onClose: () => void;
   onRemoteHostChange: (value: string) => void;
   onRemoteTokenChange: (value: string) => void;
+  onHandoffPayloadChange: (value: string) => void;
   onConnectTest: () => void;
+  onApplyHandoff: () => void;
 };
 
 export function MobileServerSetupWizard({
@@ -20,13 +24,19 @@ export function MobileServerSetupWizard({
   remoteTokenDraft,
   busy,
   checking,
+  handoffPayloadDraft,
+  handoffApplying,
   statusMessage,
   statusError,
   onClose,
   onRemoteHostChange,
   onRemoteTokenChange,
+  onHandoffPayloadChange,
   onConnectTest,
+  onApplyHandoff,
 }: MobileServerSetupWizardProps) {
+  const controlsDisabled = busy || checking || handoffApplying;
+
   return (
     <ModalShell
       className="mobile-setup-wizard-overlay"
@@ -61,7 +71,7 @@ export function MobileServerSetupWizard({
           value={remoteHostDraft}
           placeholder="macbook.your-tailnet.ts.net:4732"
           onChange={(event) => onRemoteHostChange(event.target.value)}
-          disabled={busy || checking}
+          disabled={controlsDisabled}
         />
 
         <label className="mobile-setup-wizard-label" htmlFor="mobile-setup-token">
@@ -74,16 +84,39 @@ export function MobileServerSetupWizard({
           value={remoteTokenDraft}
           placeholder="Token"
           onChange={(event) => onRemoteTokenChange(event.target.value)}
-          disabled={busy || checking}
+          disabled={controlsDisabled}
         />
 
         <button
           type="button"
           className="button primary mobile-setup-wizard-action"
           onClick={onConnectTest}
-          disabled={busy || checking}
+          disabled={controlsDisabled}
         >
           {checking ? "Checking..." : busy ? "Connecting..." : "Connect & test"}
+        </button>
+
+        <div className="mobile-setup-wizard-divider" />
+
+        <label className="mobile-setup-wizard-label" htmlFor="mobile-setup-handoff">
+          Desktop handoff payload
+        </label>
+        <textarea
+          id="mobile-setup-handoff"
+          className="mobile-setup-wizard-textarea"
+          value={handoffPayloadDraft}
+          placeholder='Paste the JSON payload copied from desktop Server settings'
+          onChange={(event) => onHandoffPayloadChange(event.target.value)}
+          disabled={controlsDisabled}
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          className="button mobile-setup-wizard-action"
+          onClick={onApplyHandoff}
+          disabled={controlsDisabled}
+        >
+          {handoffApplying ? "Applying..." : "Apply desktop handoff"}
         </button>
 
         {statusMessage ? (
@@ -99,7 +132,8 @@ export function MobileServerSetupWizard({
         ) : null}
 
         <div className="mobile-setup-wizard-hint">
-          Use the Tailscale host from desktop Server settings and keep the desktop daemon running.
+          Paste the desktop handoff payload to continue the same remote workspace and thread, or
+          enter host/token manually if you only need connectivity.
         </div>
       </div>
     </ModalShell>

@@ -32,6 +32,9 @@ type SettingsServerSectionProps = {
   remoteSwitchingId: string | null;
   remoteStatusText: string | null;
   remoteStatusError: boolean;
+  desktopHandoffCopyBusy: boolean;
+  desktopHandoffStatusText: string | null;
+  desktopHandoffStatusError: boolean;
   remoteNameError: string | null;
   remoteHostError: string | null;
   remoteNameDraft: string;
@@ -52,6 +55,7 @@ type SettingsServerSectionProps = {
   onCommitRemoteName: () => Promise<void>;
   onCommitRemoteHost: () => Promise<void>;
   onCommitRemoteToken: () => Promise<void>;
+  onCopyDesktopMobileHandoffPayload: () => void;
   onSelectRemoteBackend: (id: string) => Promise<void>;
   onAddRemoteBackend: (draft: AddRemoteBackendDraft) => Promise<void>;
   onMoveRemoteBackend: (id: string, direction: "up" | "down") => Promise<void>;
@@ -77,6 +81,9 @@ export function SettingsServerSection({
   remoteSwitchingId,
   remoteStatusText,
   remoteStatusError,
+  desktopHandoffCopyBusy,
+  desktopHandoffStatusText,
+  desktopHandoffStatusError,
   remoteNameError,
   remoteHostError,
   remoteNameDraft,
@@ -97,6 +104,7 @@ export function SettingsServerSection({
   onCommitRemoteName,
   onCommitRemoteHost,
   onCommitRemoteToken,
+  onCopyDesktopMobileHandoffPayload,
   onSelectRemoteBackend,
   onAddRemoteBackend,
   onMoveRemoteBackend,
@@ -404,6 +412,35 @@ export function SettingsServerSection({
               : "This host/token is used by mobile clients and desktop remote-mode testing."}
           </div>
         </div>
+
+        {!isMobileSimplified && (
+          <div className="settings-field">
+            <div className="settings-field-label">Desktop handoff</div>
+            <div className="settings-field-row">
+              <button
+                type="button"
+                className="button settings-button-compact"
+                onClick={onCopyDesktopMobileHandoffPayload}
+                disabled={desktopHandoffCopyBusy}
+              >
+                {desktopHandoffCopyBusy ? "Copying..." : "Copy handoff payload"}
+              </button>
+            </div>
+            {desktopHandoffStatusText && (
+              <div
+                className={`settings-help${
+                  desktopHandoffStatusError ? " settings-help-error" : ""
+                }`}
+              >
+                {desktopHandoffStatusText}
+              </div>
+            )}
+            <div className="settings-help">
+              Copy the active remote, workspace, and thread context as a v1 handoff payload for a
+              mobile client.
+            </div>
+          </div>
+        )}
 
         {isMobileSimplified && (
           <div className="settings-field">

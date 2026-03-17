@@ -9,7 +9,7 @@ type WorkspaceRefreshOptions = {
   listThreadsForWorkspaces: (
     workspaces: WorkspaceInfo[],
     options?: { preserveState?: boolean },
-  ) => Promise<void>;
+  ) => Promise<unknown>;
   backendMode?: string;
   pollIntervalMs?: number;
   suspendRefresh?: boolean;

@@ -577,10 +577,14 @@ export function useThreadActions({
         sortKey?: ThreadListSortKey;
         maxPages?: number;
       },
-    ) => {
+    ): Promise<Record<string, ThreadSummary[] | null>> => {
       const targets = workspaces.filter((workspace) => workspace.id);
+      const results: Record<string, ThreadSummary[] | null> = {};
+      targets.forEach((workspace) => {
+        results[workspace.id] = null;
+      });
       if (targets.length === 0) {
-        return;
+        return results;
       }
       const preserveState = options?.preserveState ?? false;
       const requestedSortKey = options?.sortKey ?? threadSortKey;
@@ -767,6 +771,7 @@ export function useThreadActions({
             .slice(0, THREAD_LIST_TARGET_COUNT)
             .map((thread) => summaryById.get(String(thread?.id ?? "")) ?? null)
             .filter((entry): entry is ThreadSummary => Boolean(entry));
+          results[workspace.id] = summaries;
           const includedIds = new Set(summaries.map((thread) => thread.id));
           const appendFreshAnchor = (threadId: string | null | undefined) => {
             if (!threadId || includedIds.has(threadId)) {
@@ -852,6 +857,7 @@ export function useThreadActions({
           });
         }
       }
+      return results;
     },
     [
       buildThreadSummary,
@@ -877,8 +883,9 @@ export function useThreadActions({
         sortKey?: ThreadListSortKey;
         maxPages?: number;
       },
-    ) => {
-      await listThreadsForWorkspaces([workspace], options);
+    ): Promise<ThreadSummary[] | null> => {
+      const results = await listThreadsForWorkspaces([workspace], options);
+      return results[workspace.id] ?? null;
     },
     [listThreadsForWorkspaces],
   );
