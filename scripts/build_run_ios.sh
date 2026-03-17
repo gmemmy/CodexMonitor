@@ -8,6 +8,7 @@ SIMULATOR_NAME="${SIMULATOR_NAME:-iPhone Air}"
 SIMULATOR_DEVICE_ID="${SIMULATOR_DEVICE_ID:-B3F01E53-3DCC-4326-8A29-BFA2B5986505}"
 TARGET="${TARGET:-aarch64-sim}"
 BUNDLE_ID="${BUNDLE_ID:-}"
+LEGACY_IOS_BUNDLE_ID="${LEGACY_IOS_BUNDLE_ID:-com.dimillian.codexmonitor.ios}"
 REMOTE_HOST="${REMOTE_HOST:-}"
 REMOTE_TOKEN="${REMOTE_TOKEN:-}"
 REMOTE_NAME="${REMOTE_NAME:-Primary remote}"
@@ -201,6 +202,7 @@ fi
 open -a Simulator || true
 xcrun simctl boot "$SIMULATOR_DEVICE_ID" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "$SIMULATOR_DEVICE_ID" -b >/dev/null 2>&1 || true
+xcrun simctl uninstall "$SIMULATOR_DEVICE_ID" "$LEGACY_IOS_BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl install "$SIMULATOR_DEVICE_ID" "$APP_PATH"
 if [[ -n "$REMOTE_HOST" || -n "$REMOTE_TOKEN" ]]; then
   if [[ -z "$REMOTE_HOST" || -z "$REMOTE_TOKEN" ]]; then
