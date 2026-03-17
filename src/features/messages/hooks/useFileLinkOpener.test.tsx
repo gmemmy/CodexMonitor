@@ -2,7 +2,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openWorkspaceIn } from "../../../services/tauri";
+import { pushErrorToast } from "../../../services/toasts";
 import { useFileLinkOpener } from "./useFileLinkOpener";
+
+const isMobilePlatformMock = vi.hoisted(() => vi.fn(() => false));
 
 vi.mock("../../../services/tauri", () => ({
   openWorkspaceIn: vi.fn(),
@@ -34,9 +37,20 @@ vi.mock("../../../services/toasts", () => ({
   pushErrorToast: vi.fn(),
 }));
 
+vi.mock("../../../utils/platformPaths", async () => {
+  const actual = await vi.importActual<typeof import("../../../utils/platformPaths")>(
+    "../../../utils/platformPaths",
+  );
+  return {
+    ...actual,
+    isMobilePlatform: isMobilePlatformMock,
+  };
+});
+
 describe("useFileLinkOpener", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    isMobilePlatformMock.mockReturnValue(false);
   });
 
   it("maps /workspace root-relative paths to the active workspace path", async () => {
@@ -144,5 +158,23 @@ describe("useFileLinkOpener", () => {
         line: 366,
       }),
     );
+  });
+
+  it("shows an explicit error instead of trying to launch desktop handlers on mobile", async () => {
+    isMobilePlatformMock.mockReturnValue(true);
+    const openWorkspaceInMock = vi.mocked(openWorkspaceIn);
+    const pushErrorToastMock = vi.mocked(pushErrorToast);
+    const { result } = renderHook(() => useFileLinkOpener("/workspace", [], ""));
+
+    await act(async () => {
+      await result.current.openFileLink("/workspace/src/App.tsx:12");
+    });
+
+    expect(openWorkspaceInMock).not.toHaveBeenCalled();
+    expect(pushErrorToastMock).toHaveBeenCalledWith({
+      title: "Couldn’t open file",
+      message:
+        "Opening linked files isn't available on mobile. Copy the path or open it from a desktop workspace.",
+    });
   });
 });
