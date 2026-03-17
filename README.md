@@ -255,6 +255,96 @@ npm run typecheck
 cd src-tauri && cargo check
 ```
 
+## Personal Shipping Workflow
+
+`daily` is the shipping branch for CodexMonitor. Start issue work from a clean local `daily`, and open every PR against `daily`. Do not target `main`.
+
+### Branch Strategy
+
+- Keep local `daily` in sync before starting issue work.
+- Create one short-lived branch per Linear issue from `daily`.
+- Merge validated changes back through a PR targeting `daily`.
+
+### Branch Naming
+
+- `feature/<linear-id>-<short-slug>` for new behavior, docs, workflow improvements, and other non-bug changes.
+- `fix/<linear-id>-<short-slug>` for regressions and bug fixes.
+- Use lowercase words separated by hyphens in the slug.
+- Examples: `feature/cod-5-personal-shipping-workflow`, `fix/cod-42-thread-reconnect-race`.
+
+### Default Commands
+
+Start an issue from `daily`:
+
+```bash
+git switch daily
+git pull --ff-only origin daily
+git branch --show-current
+git status --short --branch
+git switch -c feature/cod-123-short-slug
+```
+
+For a bug fix, swap the branch prefix:
+
+```bash
+git switch -c fix/cod-123-short-slug
+```
+
+### Issue Flow
+
+1. Confirm the current branch is `daily` and the worktree is clean.
+2. Move the Linear issue from `Todo` to `In Progress`.
+3. Create a branch from `daily`.
+4. Keep the change scoped to that issue only.
+5. Run the smallest validation level that matches the touched area.
+6. Push the branch and open a PR targeting `daily`.
+7. Post a short validation summary on the Linear issue and move it to `In Review`.
+8. After merge, return to `daily` before starting the next issue.
+
+### PR Defaults
+
+- Base branch: `daily`
+- Head branch: the issue branch you created from `daily`
+- PR body: link the Linear issue, summarize the scoped change, and list the validation that actually ran
+
+Create the PR from the issue branch with:
+
+```bash
+gh pr create --base daily --head feature/cod-123-short-slug --fill
+```
+
+### Validation Levels
+
+Pick the lowest level that still covers the touched surface.
+
+- Small: docs-only changes, small UI copy/layout adjustments, or isolated frontend changes with no IPC or backend contract changes. Run `npm run typecheck`. If a directly relevant test file already exists, run `npm run test -- <path>`.
+- Medium frontend-only: frontend behavior/state changes that stay inside the React/Vite app. Run `npm run typecheck` plus targeted `npm run test -- <path>` when a relevant test exists. Use `npm run test` only when the touched frontend behavior has no targeted coverage yet.
+- Medium backend/shared-core: desktop backend changes, Rust/shared-core changes, or contract changes that do not alter remote/mobile behavior. Run `cd src-tauri && cargo check`. If the change also touches frontend behavior or TypeScript contracts, run the frontend checks above too.
+- Remote/mobile: daemon RPC changes, remote backend behavior, iOS/mobile behavior, or cross-runtime contract changes that affect remote flows. Run `npm run typecheck` and `cd src-tauri && cargo check`. Validate the desktop app path locally. Validate the remote/mobile flow end-to-end whenever the change affects remote/mobile behavior.
+
+### Minimal Linear Issue Template
+
+Every issue should include:
+
+- `Problem`
+- `Desired outcome`
+- `Scope`
+- `Out of scope`
+- `Acceptance criteria`
+- `Validation`
+
+Keep each section short and concrete enough that the branch name, PR scope, and validation level are obvious before coding starts.
+
+When shipping the branch, the close-out sequence is:
+
+```bash
+npm run typecheck
+git push -u origin feature/cod-123-short-slug
+gh pr create --base daily --head feature/cod-123-short-slug --fill
+```
+
+If the issue touched Rust/shared-core or remote/mobile behavior, run the higher validation level before pushing.
+
 ## Codebase Navigation
 
 For task-oriented file lookup ("if you need X, edit Y"), use:

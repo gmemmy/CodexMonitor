@@ -5,6 +5,7 @@ Canonical navigation guide for CodexMonitor. Use this as: "if you need X, edit Y
 Related docs:
 
 - Setup/build/release: `README.md`
+- Personal shipping workflow, branch strategy, and validation levels: `README.md`
 - iOS remote over Tailscale (TCP): `docs/mobile-ios-tailscale-blueprint.md`
 
 ## Start Here: How Changes Flow
@@ -26,6 +27,7 @@ If a behavior must work in both app and daemon, implement it in `src-tauri/src/s
 
 | Need | Primary files to edit |
 | --- | --- |
+| Personal shipping workflow, branch strategy, PR target, or validation levels | `README.md` |
 | App-level UI composition/layout wiring | `src/App.tsx`, `src/features/app/components/AppLayout.tsx`, `src/features/app/bootstrap/*`, `src/features/app/orchestration/*`, `src/features/app/hooks/*` |
 | Add/change Tauri IPC methods used by frontend | `src/services/tauri.ts`, `src-tauri/src/lib.rs`, matching backend adapter module |
 | Add/change app-server event handling in UI | `src/services/events.ts`, `src/features/app/hooks/useAppServerEvents.ts`, `src/utils/appServerEvents.ts`, `src/features/threads/utils/threadNormalize.ts` |
