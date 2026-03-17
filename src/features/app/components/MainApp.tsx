@@ -592,6 +592,7 @@ export default function MainApp() {
     lastFailure: remoteThreadLastFailure,
     clearSyncFailure: clearRemoteThreadSyncFailure,
     reportSyncFailure: reportRemoteThreadSyncFailure,
+    markThreadFreshAtCurrentBoundary,
     reconnectLive,
   } =
     useRemoteThreadLiveConnection({
@@ -618,9 +619,10 @@ export default function MainApp() {
 
   const handleRemoteThreadRefreshSuccess = useCallback(
     (workspaceId: string, threadId: string) => {
+      markThreadFreshAtCurrentBoundary(workspaceId, threadId);
       clearRemoteThreadSyncFailure(workspaceId, threadId);
     },
-    [clearRemoteThreadSyncFailure],
+    [clearRemoteThreadSyncFailure, markThreadFreshAtCurrentBoundary],
   );
 
   const handleReconnectRemote = useCallback(() => {

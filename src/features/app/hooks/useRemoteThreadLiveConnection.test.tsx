@@ -616,7 +616,7 @@ describe("useRemoteThreadLiveConnection", () => {
           refreshThread,
         }),
       {
-        initialProps: { threadId: "thread-1" },
+        initialProps: { threadId: "thread-1" as string | null },
       },
     );
 
@@ -632,6 +632,69 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(threadLiveSubscribeMock).toHaveBeenCalledTimes(2);
     expect(threadLiveUnsubscribeMock).toHaveBeenCalledTimes(1);
     expect(refreshThread).toHaveBeenCalledTimes(0);
+  });
+
+  it("forces a refresh on thread switch after workspace reconnect even with local snapshots", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+    const connectedWorkspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+    const disconnectedWorkspace = {
+      ...connectedWorkspace,
+      connected: false,
+    };
+
+    const { rerender } = renderHook(
+      ({
+        workspace,
+        threadId,
+      }: {
+        workspace: typeof connectedWorkspace;
+        threadId: string | null;
+      }) =>
+        useRemoteThreadLiveConnection({
+          backendMode: "remote",
+          activeWorkspace: workspace,
+          activeThreadId: threadId,
+          activeThreadHasLocalSnapshot: true,
+          refreshThread,
+        }),
+      {
+        initialProps: {
+          workspace: connectedWorkspace,
+          threadId: "thread-1",
+        },
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      rerender({
+        workspace: disconnectedWorkspace,
+        threadId: "thread-1",
+      });
+      await Promise.resolve();
+    });
+
+    refreshThread.mockClear();
+
+    await act(async () => {
+      rerender({
+        workspace: connectedWorkspace,
+        threadId: "thread-2",
+      });
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-2");
   });
 
   it("resumes when switching to a thread without local snapshot", async () => {
@@ -677,6 +740,152 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(threadLiveUnsubscribeMock).toHaveBeenCalledTimes(1);
     expect(refreshThread).toHaveBeenCalledTimes(1);
     expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-2");
+  });
+
+  it("forces a refresh on thread switch after live interruption even with local snapshots", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+
+    const { rerender } = renderHook(
+      ({ threadId }: { threadId: string | null }) =>
+        useRemoteThreadLiveConnection({
+          backendMode: "remote",
+          activeWorkspace: workspace,
+          activeThreadId: threadId,
+          activeThreadHasLocalSnapshot: true,
+          refreshThread,
+        }),
+      {
+        initialProps: { threadId: "thread-1" as string | null },
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"));
+      await Promise.resolve();
+    });
+
+    refreshThread.mockClear();
+
+    await act(async () => {
+      rerender({ threadId: "thread-2" });
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-2");
+  });
+
+  it("does not force a second refresh for the same thread within one reconnect boundary", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+
+    const { rerender } = renderHook(
+      ({ threadId }: { threadId: string | null }) =>
+        useRemoteThreadLiveConnection({
+          backendMode: "remote",
+          activeWorkspace: workspace,
+          activeThreadId: threadId,
+          activeThreadHasLocalSnapshot: true,
+          refreshThread,
+        }),
+      {
+        initialProps: { threadId: "thread-1" as string | null },
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      rerender({ threadId: "thread-2" });
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    refreshThread.mockClear();
+
+    await act(async () => {
+      rerender({ threadId: null });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      rerender({ threadId: "thread-2" });
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(0);
+  });
+
+  it("treats externally refreshed threads as fresh for the current reconnect boundary", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/ws-1",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+
+    const { rerender, result } = renderHook(
+      ({ threadId }: { threadId: string | null }) =>
+        useRemoteThreadLiveConnection({
+          backendMode: "remote",
+          activeWorkspace: workspace,
+          activeThreadId: threadId,
+          activeThreadHasLocalSnapshot: true,
+          refreshThread,
+        }),
+      {
+        initialProps: { threadId: "thread-1" as string | null },
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      result.current.markThreadFreshAtCurrentBoundary("ws-1", "thread-2");
+      await Promise.resolve();
+    });
+
+    refreshThread.mockClear();
+
+    await act(async () => {
+      rerender({ threadId: "thread-2" });
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(0);
   });
 
   it("ignores self-triggered detached event during dedupe reconnect", async () => {

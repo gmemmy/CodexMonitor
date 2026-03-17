@@ -121,6 +121,15 @@ export function useRemoteThreadLiveConnection({
   const activeSubscriptionKeyRef = useRef<string | null>(null);
   const desiredSubscriptionKeyRef = useRef<string | null>(null);
   const ignoreDetachedEventsUntilRef = useRef<Map<string, number>>(new Map());
+  const workspaceFreshnessBoundaryRef = useRef<Record<string, number>>({});
+  const threadFreshnessBoundaryRef = useRef<Record<string, number>>({});
+  const previousWorkspaceConnectionRef = useRef<{
+    workspaceId: string | null;
+    connected: boolean;
+  }>({
+    workspaceId: activeWorkspaceId,
+    connected: activeWorkspaceConnected,
+  });
   const inFlightReconnectRef = useRef<{
     key: string;
     sequence: number;
@@ -190,6 +199,42 @@ export function useRemoteThreadLiveConnection({
     [setState],
   );
 
+  const bumpWorkspaceFreshnessBoundary = useCallback((workspaceId?: string | null) => {
+    if (!workspaceId) {
+      return;
+    }
+    workspaceFreshnessBoundaryRef.current[workspaceId] =
+      (workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0) + 1;
+  }, []);
+
+  const markThreadFreshAtCurrentBoundary = useCallback(
+    (workspaceId: string, threadId: string) => {
+      if (!workspaceId || !threadId) {
+        return;
+      }
+      threadFreshnessBoundaryRef.current[keyForThread(workspaceId, threadId)] =
+        workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0;
+    },
+    [],
+  );
+
+  const shouldResumeForFreshnessBoundary = useCallback(
+    (workspaceId: string, threadId: string) => {
+      if (!workspaceId || !threadId) {
+        return false;
+      }
+      const boundary = workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0;
+      if (boundary <= 0) {
+        return false;
+      }
+      return (
+        (threadFreshnessBoundaryRef.current[keyForThread(workspaceId, threadId)] ?? 0) <
+        boundary
+      );
+    },
+    [],
+  );
+
   const reportSyncFailure = useCallback(
     (
       workspaceId: string,
@@ -239,6 +284,28 @@ export function useRemoteThreadLiveConnection({
     clearSyncFailure();
   }, [activeWorkspaceId, activeThreadId, backendMode, clearSyncFailure]);
 
+  useEffect(() => {
+    const previous = previousWorkspaceConnectionRef.current;
+    if (
+      backendMode === "remote" &&
+      previous.workspaceId === activeWorkspaceId &&
+      activeWorkspaceId &&
+      previous.connected &&
+      !activeWorkspaceConnected
+    ) {
+      bumpWorkspaceFreshnessBoundary(activeWorkspaceId);
+    }
+    previousWorkspaceConnectionRef.current = {
+      workspaceId: activeWorkspaceId,
+      connected: activeWorkspaceConnected,
+    };
+  }, [
+    activeWorkspaceConnected,
+    activeWorkspaceId,
+    backendMode,
+    bumpWorkspaceFreshnessBoundary,
+  ]);
+
   const reconnectLive = useCallback(
     async (
       workspaceId: string,
@@ -272,7 +339,11 @@ export function useRemoteThreadLiveConnection({
         const workspaceAtStart = activeWorkspaceRef.current;
         const workspaceConnectedAtStart =
           options?.workspaceConnectedHint ?? Boolean(workspaceAtStart?.connected);
-        const shouldResume = options?.runResume !== false;
+        const boundaryRequiresResume = shouldResumeForFreshnessBoundary(
+          workspaceId,
+          threadId,
+        );
+        const shouldResume = options?.runResume !== false || boundaryRequiresResume;
         const shouldKeepLiveState = options?.reason === "thread-switch";
         if (!workspaceConnectedAtStart) {
           setState("disconnected");
@@ -317,6 +388,7 @@ export function useRemoteThreadLiveConnection({
               return false;
             }
             clearSyncFailure(workspaceId, threadId);
+            markThreadFreshAtCurrentBoundary(workspaceId, threadId);
           }
           if (sequence !== reconnectSequenceRef.current) {
             return false;
@@ -377,7 +449,14 @@ export function useRemoteThreadLiveConnection({
       });
       return reconnectPromise;
     },
-    [reconcileDisconnectedState, setState],
+    [
+      clearSyncFailure,
+      markThreadFreshAtCurrentBoundary,
+      reconcileDisconnectedState,
+      reportSyncFailure,
+      setState,
+      shouldResumeForFreshnessBoundary,
+    ],
   );
 
   useEffect(() => {
@@ -476,6 +555,7 @@ export function useRemoteThreadLiveConnection({
             ignoreDetachedEventsUntilRef.current.delete(threadKey);
           }
           activeSubscriptionKeyRef.current = null;
+          bumpWorkspaceFreshnessBoundary(activeWorkspaceId);
           reportSyncFailure(activeWorkspaceId, threadId, {
             phase: "thread_live",
             message: "Lost live connection to the remote thread.",
@@ -513,7 +593,14 @@ export function useRemoteThreadLiveConnection({
     return () => {
       unlisten();
     };
-  }, [reconnectLive, reconcileDisconnectedState, setState]);
+  }, [
+    bumpWorkspaceFreshnessBoundary,
+    clearSyncFailure,
+    reconnectLive,
+    reconcileDisconnectedState,
+    reportSyncFailure,
+    setState,
+  ]);
 
   useEffect(() => {
     let unlistenWindowFocus: (() => void) | null = null;
@@ -542,6 +629,9 @@ export function useRemoteThreadLiveConnection({
     const handleBlur = () => {
       reconnectSequenceRef.current += 1;
       desiredSubscriptionKeyRef.current = null;
+      if (backendModeRef.current === "remote") {
+        bumpWorkspaceFreshnessBoundary(activeWorkspaceRef.current?.id ?? null);
+      }
       const currentKey = activeSubscriptionKeyRef.current;
       if (!currentKey) {
         return;
@@ -612,13 +702,19 @@ export function useRemoteThreadLiveConnection({
         void unsubscribeByKey(currentKey);
       }
     };
-  }, [reconnectLive, reconcileDisconnectedState, unsubscribeByKey]);
+  }, [
+    bumpWorkspaceFreshnessBoundary,
+    reconnectLive,
+    reconcileDisconnectedState,
+    unsubscribeByKey,
+  ]);
 
   return {
     connectionState,
     lastFailure,
     clearSyncFailure,
     reportSyncFailure,
+    markThreadFreshAtCurrentBoundary,
     reconnectLive,
   };
 }
