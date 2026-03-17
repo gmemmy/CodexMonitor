@@ -32,6 +32,7 @@
     "tauri:dev": "npm run doctor:strict && tauri dev",
     "pretauri:build": "npm run sync:material-icons",
     "tauri:build": "node scripts/tauri-build.mjs",
+    "build:clients": "bash scripts/build_clients.sh",
     "pretauri:dev:win": "npm run sync:material-icons",
     "tauri:dev:win": "npm run doctor:win && tauri dev --config src-tauri/tauri.windows.conf.json",
     "pretauri:build:win": "npm run sync:material-icons",

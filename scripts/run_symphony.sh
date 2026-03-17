@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYMPHONY_DIR="$ROOT_DIR/.symphony/openai-symphony/elixir"
 SYMPHONY_BIN="$SYMPHONY_DIR/bin/symphony"
 WORKFLOW_FILE="$ROOT_DIR/WORKFLOW.md"
+SYMPHONY_ENV_FILE="$ROOT_DIR/.env.symphony.local"
 
 resolve_mise_bin() {
   if [[ -n "${MISE_BIN:-}" && -x "${MISE_BIN}" ]]; then
@@ -28,6 +29,15 @@ resolve_mise_bin() {
   return 1
 }
 
+load_symphony_env() {
+  if [[ -f "$SYMPHONY_ENV_FILE" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$SYMPHONY_ENV_FILE"
+    set +a
+  fi
+}
+
 if [[ ! -x "$SYMPHONY_BIN" ]]; then
   echo "Symphony binary not found at: $SYMPHONY_BIN" >&2
   echo "Build it first from .symphony/openai-symphony/elixir." >&2
@@ -36,6 +46,18 @@ fi
 
 if grep -q 'replace-with-your-linear-project-slug' "$WORKFLOW_FILE"; then
   echo "Set tracker.project_slug in $WORKFLOW_FILE before starting Symphony." >&2
+  exit 1
+fi
+
+load_symphony_env
+
+if [[ -z "${LINEAR_API_KEY:-}" ]]; then
+  echo "Missing LINEAR_API_KEY. Add it to $SYMPHONY_ENV_FILE before starting Symphony." >&2
+  exit 1
+fi
+
+if [[ -z "${SYMPHONY_WORKSPACE_ROOT:-}" ]]; then
+  echo "Missing SYMPHONY_WORKSPACE_ROOT in the shell environment before starting Symphony." >&2
   exit 1
 fi
 

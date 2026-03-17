@@ -15,7 +15,7 @@ tracker:
 polling:
   interval_ms: 10000
 workspace:
-  root: ~/.symphony/workspaces/codex-monitor
+  root: $SYMPHONY_WORKSPACE_ROOT
 hooks:
   after_create: |
     git clone --origin origin --branch daily file:///Applications/work/projects/personal/codex-monitor .

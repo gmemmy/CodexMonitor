@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.env.symphony.local
 src-tauri/tauri.ios.local.conf.json
 .testflight.local.env
 
@@ -34,6 +35,7 @@ CodexMonitor.zip
 .claude/
 .cursor/
 .symphony/
+.tmp/
 public/assets/material-icons/
 
 # Nix

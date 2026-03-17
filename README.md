@@ -280,9 +280,13 @@ CodexMonitor uses [`.mise.toml`](.mise.toml) as the repo-level worker toolchain 
 
 ```bash
 # prerequisite: install mise and ensure `command -v mise` succeeds
+# one-time: copy .env.symphony.local.example to .env.symphony.local and fill in LINEAR_API_KEY
+# shell-level prerequisite: export SYMPHONY_WORKSPACE_ROOT=~/.symphony/workspaces/codex-monitor
 ./scripts/bootstrap-worker.sh
 ./scripts/run_symphony.sh
 ```
+
+Symphony startup reads repo-local tracker credentials from `.env.symphony.local`, which is gitignored, and still expects `SYMPHONY_WORKSPACE_ROOT` to be exported in the shell before launch. Do not rely on a globally exported `LINEAR_API_KEY` for CodexMonitor.
 
 What `./scripts/bootstrap-worker.sh` does:
 
