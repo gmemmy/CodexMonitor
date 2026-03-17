@@ -7,6 +7,7 @@ Related docs:
 - Setup/build/release: `README.md`
 - Personal shipping workflow, branch strategy, and validation levels: `README.md`
 - iOS remote over Tailscale (TCP): `docs/mobile-ios-tailscale-blueprint.md`
+- Desktop/mobile handoff audit and v1 payload: `docs/desktop-mobile-handoff-v1.md`
 
 ## Start Here: How Changes Flow
 
