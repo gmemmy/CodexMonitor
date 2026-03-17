@@ -36,6 +36,12 @@ type ThreadListProps = {
     threadId: string,
     canPin: boolean,
   ) => void;
+  onShowMobileThreadMenu: (
+    workspaceId: string,
+    threadId: string,
+    threadName: string,
+    canPin: boolean,
+  ) => void;
 };
 
 export function ThreadList({
@@ -59,6 +65,7 @@ export function ThreadList({
   onLoadOlderThreads,
   onSelectThread,
   onShowThreadMenu,
+  onShowMobileThreadMenu,
 }: ThreadListProps) {
   const indentUnit = nested ? 10 : 14;
   const [collapsedThreadKeys, setCollapsedThreadKeys] = useState<Set<string>>(new Set());
@@ -111,6 +118,7 @@ export function ThreadList({
           isThreadPinned={isThreadPinned}
           onSelectThread={onSelectThread}
           onShowThreadMenu={onShowThreadMenu}
+          onShowMobileThreadMenu={onShowMobileThreadMenu}
           hasSubagentChildren={pinnedVisibility.rowsWithChildren.has(row)}
           subagentsExpanded={!collapsedThreadKeys.has(`${workspaceId}:${row.thread.id}`)}
           onToggleSubagents={(_, threadId) => toggleThreadSubagents(threadId)}
@@ -135,6 +143,7 @@ export function ThreadList({
           isThreadPinned={isThreadPinned}
           onSelectThread={onSelectThread}
           onShowThreadMenu={onShowThreadMenu}
+          onShowMobileThreadMenu={onShowMobileThreadMenu}
           hasSubagentChildren={unpinnedVisibility.rowsWithChildren.has(row)}
           subagentsExpanded={!collapsedThreadKeys.has(`${workspaceId}:${row.thread.id}`)}
           onToggleSubagents={(_, threadId) => toggleThreadSubagents(threadId)}

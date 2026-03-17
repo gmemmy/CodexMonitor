@@ -39,6 +39,7 @@ const baseProps = {
   onLoadOlderThreads: vi.fn(),
   onSelectThread: vi.fn(),
   onShowThreadMenu: vi.fn(),
+  onShowMobileThreadMenu: vi.fn(),
 };
 
 describe("ThreadList", () => {

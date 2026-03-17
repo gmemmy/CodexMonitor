@@ -1144,6 +1144,107 @@
   pointer-events: auto;
 }
 
+.thread-action-sheet-modal {
+  z-index: calc(var(--ds-layer-modal, 40) + 1);
+}
+
+.thread-action-sheet-card {
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: none;
+  margin: 0 auto;
+  width: min(100%, 420px);
+  border-radius: 18px 18px 0 0;
+  border-bottom: none;
+  padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.thread-action-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.thread-action-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.thread-action-sheet-title-wrap {
+  min-width: 0;
+}
+
+.thread-action-sheet-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.thread-action-sheet-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-action-sheet-close {
+  flex: 0 0 auto;
+}
+
+.thread-action-sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.thread-action-sheet-divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.thread-action-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-hover);
+  color: var(--text-strong);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.thread-action-sheet-item:hover {
+  background: var(--surface-active);
+}
+
+.thread-action-sheet-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.thread-action-sheet-item-danger {
+  color: #ff9f9f;
+  border-color: rgba(255, 116, 116, 0.28);
+  background: rgba(255, 84, 84, 0.1);
+}
+
+.thread-action-sheet-item-danger .thread-action-sheet-item-icon {
+  color: #ff8c8c;
+}
+
 .thread-more {
   border: none;
   background: transparent;

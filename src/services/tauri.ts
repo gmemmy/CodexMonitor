@@ -858,6 +858,25 @@ export async function isMobileRuntime(): Promise<boolean> {
   return invoke<boolean>("is_mobile_runtime");
 }
 
+export async function triggerHapticFeedback(): Promise<void> {
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    try {
+      navigator.vibrate(10);
+      return;
+    } catch {
+      // Fall through to the native bridge if the browser API rejects.
+    }
+  }
+
+  try {
+    await invoke("trigger_haptic_feedback");
+  } catch (error) {
+    if (!isMissingTauriInvokeError(error)) {
+      console.warn("Failed to trigger haptic feedback", error);
+    }
+  }
+}
+
 export async function updateAppSettings(settings: AppSettings): Promise<AppSettings> {
   return invoke<AppSettings>("update_app_settings", { settings });
 }

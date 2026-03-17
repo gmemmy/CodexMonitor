@@ -1,7 +1,17 @@
-import type { CSSProperties, MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent,
+} from "react";
 
 import type { ThreadSummary } from "../../../types";
 import { getThreadStatusClass, type ThreadStatusById } from "../../../utils/threadStatus";
+import { isMobilePlatform } from "../../../utils/platformPaths";
+
+const MOBILE_THREAD_LONG_PRESS_MS = 450;
+const MOBILE_THREAD_LONG_PRESS_MOVE_TOLERANCE = 10;
 
 type ThreadRowProps = {
   thread: ThreadSummary;
@@ -21,6 +31,12 @@ type ThreadRowProps = {
     event: MouseEvent,
     workspaceId: string,
     threadId: string,
+    canPin: boolean,
+  ) => void;
+  onShowMobileThreadMenu: (
+    workspaceId: string,
+    threadId: string,
+    threadName: string,
     canPin: boolean,
   ) => void;
   hasSubagentChildren?: boolean;
@@ -43,10 +59,26 @@ export function ThreadRow({
   isThreadPinned,
   onSelectThread,
   onShowThreadMenu,
+  onShowMobileThreadMenu,
   hasSubagentChildren = false,
   subagentsExpanded = true,
   onToggleSubagents,
 }: ThreadRowProps) {
+  const longPressTimerRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const mobilePlatform = isMobilePlatform();
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    pointerStartRef.current = null;
+  };
+
+  useEffect(() => clearLongPress, []);
+
   const relativeTime = getThreadTime(thread);
   const badge = getThreadArgsBadge?.(workspaceId, thread.id) ?? null;
   const modelBadge =
@@ -70,6 +102,39 @@ export function ThreadRow({
   const isPinned = canPin && isThreadPinned(workspaceId, thread.id);
   const canToggleSubagents = hasSubagentChildren && Boolean(onToggleSubagents);
 
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!mobilePlatform || event.pointerType === "mouse") {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest("button")) {
+      return;
+    }
+    clearLongPress();
+    suppressClickRef.current = false;
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      pointerStartRef.current = null;
+      suppressClickRef.current = true;
+      onShowMobileThreadMenu(workspaceId, thread.id, thread.name, canPin);
+    }, MOBILE_THREAD_LONG_PRESS_MS);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!mobilePlatform || longPressTimerRef.current === null || !pointerStartRef.current) {
+      return;
+    }
+    const deltaX = event.clientX - pointerStartRef.current.x;
+    const deltaY = event.clientY - pointerStartRef.current.y;
+    if (Math.hypot(deltaX, deltaY) > MOBILE_THREAD_LONG_PRESS_MOVE_TOLERANCE) {
+      clearLongPress();
+    }
+  };
+
+  const handlePointerEnd = () => {
+    clearLongPress();
+  };
+
   return (
     <div
       className={`thread-row ${
@@ -78,8 +143,28 @@ export function ThreadRow({
           : ""
       }${canToggleSubagents ? " has-subagent-children" : ""}`}
       style={indentStyle}
-      onClick={() => onSelectThread(workspaceId, thread.id)}
-      onContextMenu={(event) => onShowThreadMenu(event, workspaceId, thread.id, canPin)}
+      onClick={(event) => {
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        onSelectThread(workspaceId, thread.id);
+      }}
+      onContextMenu={(event) => {
+        if (mobilePlatform) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        onShowThreadMenu(event, workspaceId, thread.id, canPin);
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onPointerLeave={handlePointerEnd}
       role="button"
       tabIndex={0}
       onKeyDown={(event) => {

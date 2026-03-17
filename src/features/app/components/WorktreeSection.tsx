@@ -48,6 +48,12 @@ type WorktreeSectionProps = {
     threadId: string,
     canPin: boolean,
   ) => void;
+  onShowMobileThreadMenu: (
+    workspaceId: string,
+    threadId: string,
+    threadName: string,
+    canPin: boolean,
+  ) => void;
   onShowWorktreeMenu: (event: MouseEvent, worktree: WorkspaceInfo) => void;
   onToggleExpanded: (workspaceId: string) => void;
   onLoadOlderThreads: (workspaceId: string) => void;
@@ -79,6 +85,7 @@ export function WorktreeSection({
   onToggleWorkspaceCollapse,
   onSelectThread,
   onShowThreadMenu,
+  onShowMobileThreadMenu,
   onShowWorktreeMenu,
   onToggleExpanded,
   onLoadOlderThreads,
@@ -154,6 +161,7 @@ export function WorktreeSection({
                   onLoadOlderThreads={onLoadOlderThreads}
                   onSelectThread={onSelectThread}
                   onShowThreadMenu={onShowThreadMenu}
+                  onShowMobileThreadMenu={onShowMobileThreadMenu}
                 />
               )}
               {showWorktreeLoader && <ThreadLoading nested />}

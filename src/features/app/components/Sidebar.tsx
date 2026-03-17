@@ -10,7 +10,7 @@ import type {
 import { createPortal } from "react-dom";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
-import { FolderOpen } from "lucide-react";
+import { Archive, FolderOpen, Pencil, Pin, PinOff, RefreshCw } from "lucide-react";
 import Copy from "lucide-react/dist/esm/icons/copy";
 import GitBranch from "lucide-react/dist/esm/icons/git-branch";
 import Plus from "lucide-react/dist/esm/icons/plus";
@@ -19,6 +19,7 @@ import {
   PopoverMenuItem,
   PopoverSurface,
 } from "../../design-system/components/popover/PopoverPrimitives";
+import { ModalShell } from "../../design-system/components/modal/ModalShell";
 import { SidebarCornerActions } from "./SidebarCornerActions";
 import { SidebarFooter } from "./SidebarFooter";
 import { SidebarHeader } from "./SidebarHeader";
@@ -37,6 +38,7 @@ import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { getUsageLabels } from "../utils/usageLabels";
 import { formatRelativeTimeShort } from "../../../utils/time";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import { isMobilePlatform } from "../../../utils/platformPaths";
 
 const COLLAPSED_GROUPS_STORAGE_KEY = "codexmonitor.collapsedGroups";
 const UNGROUPED_COLLAPSE_ID = "__ungrouped__";
@@ -177,6 +179,7 @@ export const Sidebar = memo(function Sidebar({
   onWorkspaceDragLeave,
   onWorkspaceDrop,
 }: SidebarProps) {
+  const mobilePlatform = isMobilePlatform();
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(
     new Set<string>(),
   );
@@ -208,18 +211,25 @@ export const Sidebar = memo(function Sidebar({
     COLLAPSED_GROUPS_STORAGE_KEY,
   );
   const { getThreadRows } = useThreadRows(threadParentById);
-  const { showThreadMenu, showWorkspaceMenu, showWorktreeMenu, showCloneMenu } =
-    useSidebarMenus({
-      onDeleteThread,
-      onSyncThread,
-      onPinThread: pinThread,
-      onUnpinThread: unpinThread,
-      isThreadPinned,
-      onRenameThread,
-      onReloadWorkspaceThreads,
-      onDeleteWorkspace,
-      onDeleteWorktree,
-    });
+  const {
+    showThreadMenu,
+    openMobileThreadMenu,
+    closeMobileThreadMenu,
+    mobileThreadMenu,
+    showWorkspaceMenu,
+    showWorktreeMenu,
+    showCloneMenu,
+  } = useSidebarMenus({
+    onDeleteThread,
+    onSyncThread,
+    onPinThread: pinThread,
+    onUnpinThread: unpinThread,
+    isThreadPinned,
+    onRenameThread,
+    onReloadWorkspaceThreads,
+    onDeleteWorkspace,
+    onDeleteWorktree,
+  });
   const {
     sessionPercent,
     weeklyPercent,
@@ -873,6 +883,7 @@ export const Sidebar = memo(function Sidebar({
                 isThreadPinned={isThreadPinned}
                 onSelectThread={onSelectThread}
                 onShowThreadMenu={showThreadMenu}
+                onShowMobileThreadMenu={openMobileThreadMenu}
                 getWorkspaceLabel={isThreadsOnlyMode ? getWorkspaceLabel : undefined}
               />
             </div>
@@ -906,6 +917,7 @@ export const Sidebar = memo(function Sidebar({
                       isThreadPinned={isThreadPinned}
                       onSelectThread={onSelectThread}
                       onShowThreadMenu={showThreadMenu}
+                      onShowMobileThreadMenu={openMobileThreadMenu}
                       getWorkspaceLabel={getWorkspaceLabel}
                     />
                   )}
@@ -1102,6 +1114,7 @@ export const Sidebar = memo(function Sidebar({
                               onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
                               onSelectThread={onSelectThread}
                               onShowThreadMenu={showThreadMenu}
+                              onShowMobileThreadMenu={openMobileThreadMenu}
                               onShowWorktreeMenu={showCloneMenu}
                               onToggleExpanded={handleToggleExpanded}
                               onLoadOlderThreads={onLoadOlderThreads}
@@ -1136,6 +1149,7 @@ export const Sidebar = memo(function Sidebar({
                               onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
                               onSelectThread={onSelectThread}
                               onShowThreadMenu={showThreadMenu}
+                              onShowMobileThreadMenu={openMobileThreadMenu}
                               onShowWorktreeMenu={showWorktreeMenu}
                               onToggleExpanded={handleToggleExpanded}
                               onLoadOlderThreads={onLoadOlderThreads}
@@ -1161,6 +1175,7 @@ export const Sidebar = memo(function Sidebar({
                               onLoadOlderThreads={onLoadOlderThreads}
                               onSelectThread={onSelectThread}
                               onShowThreadMenu={showThreadMenu}
+                              onShowMobileThreadMenu={openMobileThreadMenu}
                             />
                           )}
                           {showThreadLoader && <ThreadLoading />}
@@ -1206,6 +1221,89 @@ export const Sidebar = memo(function Sidebar({
         onSwitchAccount={onSwitchAccount}
         onCancelSwitchAccount={onCancelSwitchAccount}
       />
+      {mobilePlatform &&
+        mobileThreadMenu &&
+        createPortal(
+          <ModalShell
+            className="thread-action-sheet-modal"
+            cardClassName="thread-action-sheet-card"
+            ariaLabel="Thread actions"
+            onBackdropClick={closeMobileThreadMenu}
+          >
+            <div className="thread-action-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="thread-action-sheet-header">
+                <div className="thread-action-sheet-title-wrap">
+                  <div className="thread-action-sheet-title">Thread actions</div>
+                  <div className="thread-action-sheet-subtitle">
+                    {mobileThreadMenu.threadName}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="ghost thread-action-sheet-close"
+                  onClick={closeMobileThreadMenu}
+                  aria-label="Close thread actions"
+                >
+                  <X aria-hidden size={16} />
+                </button>
+              </div>
+              <div className="thread-action-sheet-section">
+                {mobileThreadMenu.actions
+                  .filter((action) => !action.destructive)
+                  .map((action) => {
+                    const icon =
+                      action.id === "rename" ? (
+                        <Pencil size={16} aria-hidden />
+                      ) : action.id === "sync" ? (
+                        <RefreshCw size={16} aria-hidden />
+                      ) : action.id === "pin" && action.label === "Unpin" ? (
+                        <PinOff size={16} aria-hidden />
+                      ) : action.id === "pin" ? (
+                        <Pin size={16} aria-hidden />
+                      ) : (
+                        <Copy size={16} aria-hidden />
+                      );
+                    return (
+                      <button
+                        key={action.id}
+                        type="button"
+                        className="thread-action-sheet-item"
+                        onClick={() => {
+                          closeMobileThreadMenu();
+                          void action.onSelect();
+                        }}
+                      >
+                        <span className="thread-action-sheet-item-icon">{icon}</span>
+                        <span>{action.label}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+              <div className="thread-action-sheet-divider" aria-hidden />
+              <div className="thread-action-sheet-section">
+                {mobileThreadMenu.actions
+                  .filter((action) => action.destructive)
+                  .map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      className="thread-action-sheet-item thread-action-sheet-item-danger"
+                      onClick={() => {
+                        closeMobileThreadMenu();
+                        void action.onSelect();
+                      }}
+                    >
+                      <span className="thread-action-sheet-item-icon">
+                        <Archive size={16} aria-hidden />
+                      </span>
+                      <span>{action.label}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </ModalShell>,
+          document.body,
+        )}
     </aside>
   );
 });
