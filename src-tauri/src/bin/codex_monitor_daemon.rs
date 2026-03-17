@@ -81,14 +81,14 @@ use shared::codex_core::CodexLoginCancelState;
 use shared::process_core::kill_child_process_tree;
 use shared::prompts_core::{self, CustomPromptEntry};
 use shared::{
-    agents_config_core, codex_aux_core, codex_core, files_core, git_core, git_ui_core,
-    local_usage_core, settings_core, workspaces_core, worktree_core,
+    active_selection_core, agents_config_core, codex_aux_core, codex_core, files_core, git_core,
+    git_ui_core, local_usage_core, settings_core, workspaces_core, worktree_core,
 };
 use storage::{read_settings, read_workspaces};
 use types::{
-    AppSettings, GitCommitDiff, GitFileDiff, GitHubIssuesResponse, GitHubPullRequestComment,
-    GitHubPullRequestDiff, GitHubPullRequestsResponse, GitLogResponse, LocalUsageSnapshot,
-    WorkspaceEntry, WorkspaceInfo, WorkspaceSettings, WorktreeSetupStatus,
+    ActiveSelectionState, AppSettings, GitCommitDiff, GitFileDiff, GitHubIssuesResponse,
+    GitHubPullRequestComment, GitHubPullRequestDiff, GitHubPullRequestsResponse, GitLogResponse,
+    LocalUsageSnapshot, WorkspaceEntry, WorkspaceInfo, WorkspaceSettings, WorktreeSetupStatus,
 };
 use workspace_settings::apply_workspace_settings_update;
 
@@ -607,6 +607,32 @@ impl DaemonState {
             },
         )
         .await
+    }
+
+    async fn get_active_selection_state(&self) -> Result<ActiveSelectionState, String> {
+        active_selection_core::get_active_selection_state_core(&self.settings_path)
+    }
+
+    async fn set_active_workspace_selection(
+        &self,
+        workspace_id: Option<String>,
+    ) -> Result<ActiveSelectionState, String> {
+        active_selection_core::set_active_workspace_selection_core(
+            &self.settings_path,
+            workspace_id,
+        )
+    }
+
+    async fn set_active_thread_selection(
+        &self,
+        workspace_id: String,
+        thread_id: Option<String>,
+    ) -> Result<ActiveSelectionState, String> {
+        active_selection_core::set_active_thread_selection_core(
+            &self.settings_path,
+            workspace_id,
+            thread_id,
+        )
     }
 
     async fn get_app_settings(&self) -> AppSettings {

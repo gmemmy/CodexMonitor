@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Options as NotificationOptions } from "@tauri-apps/plugin-notification";
 import type {
+  ActiveSelectionState,
   AppSettings,
   CodexUpdateResult,
   CodexDoctorResult,
@@ -102,6 +103,23 @@ export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
     }
     throw error;
   }
+}
+
+export async function getActiveSelectionState(): Promise<ActiveSelectionState> {
+  return invoke<ActiveSelectionState>("get_active_selection_state");
+}
+
+export async function setActiveWorkspaceSelection(
+  workspaceId: string | null,
+): Promise<ActiveSelectionState> {
+  return invoke<ActiveSelectionState>("set_active_workspace_selection", { workspaceId });
+}
+
+export async function setActiveThreadSelection(
+  workspaceId: string,
+  threadId: string | null,
+): Promise<ActiveSelectionState> {
+  return invoke<ActiveSelectionState>("set_active_thread_selection", { workspaceId, threadId });
 }
 
 export async function getCodexConfigPath(): Promise<string> {

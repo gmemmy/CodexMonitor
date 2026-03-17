@@ -69,11 +69,31 @@ pub(super) async fn try_handle(
 ) -> Option<Result<Value, String>> {
     match method {
         "list_workspaces" => Some(serialize_value(state.list_workspaces().await)),
+        "get_active_selection_state" => {
+            Some(serialize_result(state.get_active_selection_state()).await)
+        }
         "is_workspace_path_dir" => {
             let request = parse_request_or_err!(params, workspace_rpc::IsWorkspacePathDirRequest);
             Some(serialize_value(
                 state.is_workspace_path_dir(request.path).await,
             ))
+        }
+        "set_active_workspace_selection" => {
+            let request =
+                parse_request_or_err!(params, workspace_rpc::SetActiveWorkspaceSelectionRequest);
+            Some(
+                serialize_result(state.set_active_workspace_selection(request.workspace_id)).await,
+            )
+        }
+        "set_active_thread_selection" => {
+            let request =
+                parse_request_or_err!(params, workspace_rpc::SetActiveThreadSelectionRequest);
+            Some(
+                serialize_result(
+                    state.set_active_thread_selection(request.workspace_id, request.thread_id),
+                )
+                .await,
+            )
         }
         "add_workspace" => {
             let request = parse_request_or_err!(params, workspace_rpc::AddWorkspaceRequest);

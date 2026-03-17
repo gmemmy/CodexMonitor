@@ -1,4 +1,5 @@
 pub(crate) mod account;
+pub(crate) mod active_selection_core;
 pub(crate) mod agents_config_core;
 pub(crate) mod codex_aux_core;
 pub(crate) mod codex_core;

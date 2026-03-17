@@ -20,9 +20,11 @@ use crate::backend::app_server::WorkspaceSession;
 use crate::codex::spawn_workspace_session;
 use crate::git_utils::resolve_git_root;
 use crate::remote_backend;
-use crate::shared::{workspace_rpc, workspaces_core};
+use crate::shared::{active_selection_core, workspace_rpc, workspaces_core};
 use crate::state::AppState;
-use crate::types::{WorkspaceEntry, WorkspaceInfo, WorkspaceSettings, WorktreeSetupStatus};
+use crate::types::{
+    ActiveSelectionState, WorkspaceEntry, WorkspaceInfo, WorkspaceSettings, WorktreeSetupStatus,
+};
 
 fn spawn_with_app(
     app: &AppHandle,
@@ -87,6 +89,75 @@ pub(crate) async fn list_workspaces(
     }
 
     Ok(workspaces_core::list_workspaces_core(&state.workspaces, &state.sessions).await)
+}
+
+#[tauri::command]
+pub(crate) async fn get_active_selection_state(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<ActiveSelectionState, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "get_active_selection_state",
+            workspace_remote_empty_params(),
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    active_selection_core::get_active_selection_state_core(&state.settings_path)
+}
+
+#[tauri::command]
+pub(crate) async fn set_active_workspace_selection(
+    workspace_id: Option<String>,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<ActiveSelectionState, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let request = workspace_rpc::SetActiveWorkspaceSelectionRequest { workspace_id };
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "set_active_workspace_selection",
+            workspace_remote_params(&request)?,
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    active_selection_core::set_active_workspace_selection_core(&state.settings_path, workspace_id)
+}
+
+#[tauri::command]
+pub(crate) async fn set_active_thread_selection(
+    workspace_id: String,
+    thread_id: Option<String>,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<ActiveSelectionState, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let request = workspace_rpc::SetActiveThreadSelectionRequest {
+            workspace_id,
+            thread_id,
+        };
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "set_active_thread_selection",
+            workspace_remote_params(&request)?,
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    active_selection_core::set_active_thread_selection_core(
+        &state.settings_path,
+        workspace_id,
+        thread_id,
+    )
 }
 
 #[tauri::command]

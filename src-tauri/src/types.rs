@@ -242,6 +242,15 @@ pub(crate) struct TailscaleDaemonCommandPreview {
     pub(crate) token_configured: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActiveSelectionState {
+    #[serde(default, rename = "activeWorkspaceId")]
+    pub(crate) active_workspace_id: Option<String>,
+    #[serde(default, rename = "activeThreadIdByWorkspace")]
+    pub(crate) active_thread_id_by_workspace: HashMap<String, String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct BranchInfo {
     pub(crate) name: String,

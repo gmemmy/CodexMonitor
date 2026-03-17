@@ -61,6 +61,7 @@ import { useSystemNotificationThreadLinks } from "@app/hooks/useSystemNotificati
 import { useThreadListSortKey } from "@app/hooks/useThreadListSortKey";
 import { useThreadListActions } from "@app/hooks/useThreadListActions";
 import { useRemoteBackendHandoff } from "@app/hooks/useRemoteBackendHandoff";
+import { useBackendSelectionContinuity } from "@app/hooks/useBackendSelectionContinuity";
 import { useRemoteThreadLiveConnection } from "@app/hooks/useRemoteThreadLiveConnection";
 import { useTrayRecentThreads } from "@app/hooks/useTrayRecentThreads";
 import { useTraySessionUsage } from "@app/hooks/useTraySessionUsage";
@@ -613,6 +614,19 @@ export default function MainApp() {
     listThreadsForWorkspace,
     refreshAccountInfo,
     refreshAccountRateLimits,
+  });
+  useBackendSelectionContinuity({
+    appSettings,
+    workspaces,
+    hasLoaded,
+    suspend: remoteBackendHandoffInProgress,
+    activeWorkspace,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
+    activeThreadId,
+    setActiveThreadId,
+    listThreadsForWorkspace,
+    refreshThread,
   });
   const activeThreadIsProcessing = Boolean(
     activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
