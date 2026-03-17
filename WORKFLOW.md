@@ -7,9 +7,7 @@ tracker:
     - Todo
     - In Progress
     - In Review
-    - Human Review
     - Rework
-    - Merging
   terminal_states:
     - Done
     - Closed
@@ -65,10 +63,8 @@ Status flow:
 - `Backlog`: ignore and do not change.
 - `Todo`: move to `In Progress`, then start work.
 - `In Progress`: continue work.
-- `In Review`: wait for human review unless the issue explicitly says more changes are required.
-- `Human Review`: wait for human review unless the issue explicitly says more changes are required.
+- `In Review`: wait for human review unless explicit review feedback requires more changes.
 - `Rework`: continue work on requested changes.
-- `Merging`: merge/landing stage.
 - `Done`: no action.
 
 Execution rules:
