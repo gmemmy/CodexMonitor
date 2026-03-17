@@ -78,6 +78,7 @@ import {
   useWorkspaceOrderingOrchestration,
 } from "@app/orchestration/useWorkspaceOrchestration";
 import { useAppShellOrchestration } from "@app/orchestration/useLayoutOrchestration";
+import { buildHomeLiveRunSummary } from "@/features/home/utils/liveRunSummary";
 import { buildCodexArgsOptions } from "@threads/utils/codexArgsProfiles";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
 import {
@@ -591,6 +592,15 @@ export default function MainApp() {
     isThreadPinned: isWorkspaceThreadPinned,
     getPinTimestamp: getWorkspacePinTimestamp,
   });
+  const activeThreadSummary =
+    activeWorkspaceId && activeThreadId
+      ? (threadsByWorkspace[activeWorkspaceId] ?? []).find(
+          (thread) => thread.id === activeThreadId,
+        ) ?? null
+      : null;
+  const activeThreadLastAgentMessage = activeThreadId
+    ? lastAgentMessageByThread[activeThreadId] ?? null
+    : null;
   const {
     handoffRemoteBackend,
     captureDesktopMobileHandoffPayload,
@@ -601,12 +611,7 @@ export default function MainApp() {
     setAppSettings,
     activeWorkspace,
     activeThreadId,
-    activeThreadTitle:
-      activeWorkspaceId && activeThreadId
-        ? (
-            threadsByWorkspace[activeWorkspaceId] ?? []
-          ).find((thread) => thread.id === activeThreadId)?.name ?? null
-        : null,
+    activeThreadTitle: activeThreadSummary?.name ?? null,
     connectWorkspace,
     setActiveThreadId,
     replaceWorkspaceState,
@@ -1588,6 +1593,21 @@ export default function MainApp() {
     remoteReconnectLoading,
     remoteSyncFailure,
   ]);
+  const activeLiveRunSummary = buildHomeLiveRunSummary({
+    isPhone,
+    backendMode: appSettings.backendMode,
+    activeWorkspace,
+    activeThreadId,
+    activeThreadTitle: activeThreadSummary?.name ?? null,
+    activeThreadUpdatedAt: activeThreadSummary?.updatedAt ?? null,
+    activeItems,
+    lastAgentMessage: activeThreadLastAgentMessage,
+    threadStatus: activeThreadId ? threadStatusById[activeThreadId] ?? null : null,
+    remotePresence,
+    resumeLoading: activeThreadId
+      ? threadResumeLoadingById[activeThreadId] ?? false
+      : false,
+  });
 
   const {
     handleAddWorkspace,
@@ -1980,6 +2000,7 @@ export default function MainApp() {
     activeTokenUsage,
     latestAgentRuns,
     isLoadingLatestAgents,
+    liveRunSummary: activeLiveRunSummary,
     localUsageSnapshot,
     isLoadingLocalUsage,
     localUsageError,
@@ -2097,6 +2118,9 @@ export default function MainApp() {
     updateCustomInstructions,
     confirmCustom,
     handleComposerSendWithDraftStart,
+    startResume: () => {
+      void startResume("");
+    },
     interruptTurn,
     terminalOpen,
     debugOpen,

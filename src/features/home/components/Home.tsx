@@ -1,6 +1,11 @@
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
 import type { LocalUsageSnapshot } from "../../../types";
 import { formatRelativeTime } from "../../../utils/time";
+import { formatDurationMs } from "../../messages/utils/messageRenderUtils";
+import {
+  buildHomeLiveRunSummaryClipboardText,
+  type HomeLiveRunSummary,
+} from "../utils/liveRunSummary";
 
 type LatestAgentRun = {
   message: string;
@@ -22,6 +27,9 @@ type UsageWorkspaceOption = {
 type HomeProps = {
   onAddWorkspace: () => void;
   onAddWorkspaceFromUrl: () => void;
+  liveRunSummary: HomeLiveRunSummary | null;
+  onInterruptLiveRun: () => void;
+  onResumeLiveRun: () => void;
   latestAgentRuns: LatestAgentRun[];
   isLoadingLatestAgents: boolean;
   localUsageSnapshot: LocalUsageSnapshot | null;
@@ -36,9 +44,112 @@ type HomeProps = {
   onSelectThread: (workspaceId: string, threadId: string) => void;
 };
 
+type HomeLiveRunSummaryCardProps = {
+  summary: HomeLiveRunSummary;
+  onOpenThread: (workspaceId: string, threadId: string) => void;
+  onInterrupt: () => void;
+  onResume: () => void;
+};
+
+function HomeLiveRunSummaryCard({
+  summary,
+  onOpenThread,
+  onInterrupt,
+  onResume,
+}: HomeLiveRunSummaryCardProps) {
+  const detailParts: string[] = [];
+
+  if (summary.remoteDetail) {
+    detailParts.push(summary.remoteDetail);
+  }
+  if (summary.processingStartedAt) {
+    detailParts.push(`Started ${formatRelativeTime(summary.processingStartedAt)}`);
+  } else if (summary.lastDurationMs !== null) {
+    detailParts.push(`Last run ${formatDurationMs(summary.lastDurationMs)}`);
+  }
+
+  const handleCopySummary = async () => {
+    const clipboard = typeof navigator === "undefined" ? null : navigator.clipboard;
+    if (!clipboard?.writeText) {
+      return;
+    }
+    await clipboard
+      .writeText(buildHomeLiveRunSummaryClipboardText(summary))
+      .catch(() => {});
+  };
+
+  return (
+    <div
+      className="home-live-run-card"
+      role="region"
+      aria-label="Active desktop run summary"
+    >
+      <div className="home-live-run-card-header">
+        <div className="home-live-run-card-copy">
+          <div className="home-live-run-workspace">{summary.workspaceName}</div>
+          <div className="home-live-run-thread">{summary.threadTitle}</div>
+        </div>
+        {summary.updatedAt ? (
+          <div className="home-live-run-time">
+            Updated {formatRelativeTime(summary.updatedAt)}
+          </div>
+        ) : null}
+      </div>
+      <div className="home-live-run-status-row">
+        <span className={`home-live-run-badge is-${summary.runStatusTone}`}>
+          {summary.runStatusLabel}
+        </span>
+        <span
+          className={`home-live-run-badge is-${summary.remoteState}`}
+          title={summary.remoteTitle}
+        >
+          {summary.remoteLabel}
+        </span>
+      </div>
+      <div className="home-live-run-summary">{summary.summaryText}</div>
+      {detailParts.length > 0 ? (
+        <div className="home-live-run-detail">{detailParts.join(" · ")}</div>
+      ) : null}
+      <div className="home-live-run-actions">
+        <button
+          type="button"
+          className="home-live-run-action"
+          onClick={() => onOpenThread(summary.workspaceId, summary.threadId)}
+        >
+          Open thread
+        </button>
+        <button
+          type="button"
+          className="home-live-run-action home-live-run-action-primary"
+          onClick={summary.actionMode === "interrupt" ? onInterrupt : onResume}
+          disabled={summary.actionBusy}
+        >
+          {summary.actionMode === "interrupt"
+            ? "Interrupt"
+            : summary.actionBusy
+              ? "Resuming..."
+              : "Resume"}
+        </button>
+        <button
+          type="button"
+          className="home-live-run-action"
+          onClick={() => {
+            void handleCopySummary();
+          }}
+        >
+          Copy summary
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Home({
   onAddWorkspace,
   onAddWorkspaceFromUrl,
+  liveRunSummary,
+  onInterruptLiveRun,
+  onResumeLiveRun,
   latestAgentRuns,
   isLoadingLatestAgents,
   localUsageSnapshot,
@@ -181,6 +292,19 @@ export function Home({
           Orchestrate agents across your local projects.
         </div>
       </div>
+      {liveRunSummary ? (
+        <div className="home-live-run">
+          <div className="home-latest-header">
+            <div className="home-latest-label">Active on desktop</div>
+          </div>
+          <HomeLiveRunSummaryCard
+            summary={liveRunSummary}
+            onOpenThread={onSelectThread}
+            onInterrupt={onInterruptLiveRun}
+            onResume={onResumeLiveRun}
+          />
+        </div>
+      ) : null}
       <div className="home-latest">
         <div className="home-latest-header">
           <div className="home-latest-label">Latest agents</div>

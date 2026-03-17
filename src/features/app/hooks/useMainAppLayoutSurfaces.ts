@@ -70,6 +70,7 @@ type UseMainAppLayoutSurfacesArgs = {
   activeTokenUsage: ComposerProps["contextUsage"];
   latestAgentRuns: LayoutNodesOptions["primary"]["homeProps"]["latestAgentRuns"];
   isLoadingLatestAgents: LayoutNodesOptions["primary"]["homeProps"]["isLoadingLatestAgents"];
+  liveRunSummary: LayoutNodesOptions["primary"]["homeProps"]["liveRunSummary"];
   localUsageSnapshot: LayoutNodesOptions["primary"]["homeProps"]["localUsageSnapshot"];
   isLoadingLocalUsage: LayoutNodesOptions["primary"]["homeProps"]["isLoadingLocalUsage"];
   localUsageError: LayoutNodesOptions["primary"]["homeProps"]["localUsageError"];
@@ -193,6 +194,7 @@ type UseMainAppLayoutSurfacesArgs = {
   updateCustomInstructions: ComposerProps["onReviewPromptUpdateCustomInstructions"];
   confirmCustom: ComposerProps["onReviewPromptConfirmCustom"];
   handleComposerSendWithDraftStart: ComposerProps["onSend"];
+  startResume: () => void;
   interruptTurn: () => void;
   terminalOpen: boolean;
   debugOpen: boolean;
@@ -267,6 +269,7 @@ export function useMainAppLayoutSurfaces({
   activeTokenUsage,
   latestAgentRuns,
   isLoadingLatestAgents,
+  liveRunSummary,
   localUsageSnapshot,
   isLoadingLocalUsage,
   localUsageError,
@@ -353,6 +356,7 @@ export function useMainAppLayoutSurfaces({
   updateCustomInstructions,
   confirmCustom,
   handleComposerSendWithDraftStart,
+  startResume,
   interruptTurn,
   terminalOpen,
   debugOpen,
@@ -595,6 +599,9 @@ export function useMainAppLayoutSurfaces({
       homeProps: {
         onAddWorkspace: handleAddWorkspace,
         onAddWorkspaceFromUrl: openWorkspaceFromUrlPrompt,
+        liveRunSummary,
+        onInterruptLiveRun: interruptTurn,
+        onResumeLiveRun: startResume,
         latestAgentRuns,
         isLoadingLatestAgents,
         localUsageSnapshot,
