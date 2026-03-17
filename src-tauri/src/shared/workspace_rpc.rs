@@ -87,6 +87,19 @@ pub(crate) struct UpdateWorkspaceSettingsRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct SetActiveWorkspaceSelectionRequest {
+    pub(crate) workspace_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SetActiveThreadSelectionRequest {
+    pub(crate) workspace_id: String,
+    pub(crate) thread_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct WorkspaceThreadPinRequest {
     pub(crate) workspace_id: String,
     pub(crate) thread_id: String,

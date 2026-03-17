@@ -59,6 +59,11 @@ export type WorkspaceInfo = {
   settings: WorkspaceSettings;
 };
 
+export type ActiveSelectionState = {
+  activeWorkspaceId: string | null;
+  activeThreadIdByWorkspace: Record<string, string>;
+};
+
 export type RemoteSyncFailurePhase =
   | "workspace_refresh"
   | "workspace_connect"
