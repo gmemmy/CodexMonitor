@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ActiveSelectionState, AppSettings, ThreadRefreshResult, WorkspaceInfo } from "@/types";
+import type {
+  ActiveSelectionState,
+  AppSettings,
+  ThreadListSortKey,
+  ThreadRefreshResult,
+  ThreadSummary,
+  WorkspaceInfo,
+} from "@/types";
 import {
   getActiveSelectionState,
   setActiveThreadSelection,
@@ -23,8 +30,12 @@ type UseBackendSelectionContinuityArgs = {
   setActiveThreadId: (threadId: string | null, workspaceId?: string) => void;
   listThreadsForWorkspace: (
     workspace: WorkspaceInfo,
-    options?: { preserveState?: boolean; maxPages?: number },
-  ) => Promise<void>;
+    options?: {
+      preserveState?: boolean;
+      sortKey?: ThreadListSortKey;
+      maxPages?: number;
+    },
+  ) => Promise<ThreadSummary[] | null>;
   refreshThread: (workspaceId: string, threadId: string) => Promise<ThreadRefreshResult>;
 };
 
