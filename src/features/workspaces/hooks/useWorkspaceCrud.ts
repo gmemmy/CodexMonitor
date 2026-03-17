@@ -14,10 +14,13 @@ import {
   connectWorkspace as connectWorkspaceService,
   isWorkspacePathDir as isWorkspacePathDirService,
   listWorkspaces,
+  pinWorkspaceThread as pinWorkspaceThreadService,
   removeWorkspace as removeWorkspaceService,
+  unpinWorkspaceThread as unpinWorkspaceThreadService,
   updateWorkspaceSettings as updateWorkspaceSettingsService,
 } from "../../../services/tauri";
 import { buildRemoteSyncFailure, formatRemoteSyncErrorMessage } from "@/features/app/utils/remoteSync";
+import { getWorkspacePinnedThreads } from "../utils/pinnedThreads";
 
 type UseWorkspaceCrudOptions = {
   onDebug?: (entry: DebugEntry) => void;
@@ -467,6 +470,120 @@ export function useWorkspaceCrud({
     [onDebug, setWorkspaces, workspaces, workspaceSettingsRef],
   );
 
+  const pinThread = useCallback(
+    async (workspaceId: string, threadId: string) => {
+      onDebug?.({
+        id: `${Date.now()}-client-pin-workspace-thread`,
+        timestamp: Date.now(),
+        source: "client",
+        label: "workspace/thread-pin",
+        payload: { workspaceId, threadId },
+      });
+      const currentWorkspace = workspaces.find((entry) => entry.id === workspaceId) ?? null;
+      const currentSettings =
+        workspaceSettingsRef.current.get(workspaceId) ?? currentWorkspace?.settings ?? null;
+      if (!currentWorkspace || !currentSettings) {
+        throw new Error("workspace not found");
+      }
+
+      const previousSettings = currentSettings;
+      const nextPinnedThreads = {
+        ...getWorkspacePinnedThreads(currentSettings),
+        [threadId]: Date.now(),
+      };
+      const nextSettings = { ...currentSettings, pinnedThreads: nextPinnedThreads };
+      workspaceSettingsRef.current.set(workspaceId, nextSettings);
+      setWorkspaces((prev) =>
+        prev.map((entry) =>
+          entry.id === workspaceId ? { ...entry, settings: nextSettings } : entry,
+        ),
+      );
+
+      try {
+        const updated = await pinWorkspaceThreadService(workspaceId, threadId);
+        workspaceSettingsRef.current.set(workspaceId, updated.settings);
+        setWorkspaces((prev) =>
+          prev.map((entry) => (entry.id === workspaceId ? updated : entry)),
+        );
+        return updated;
+      } catch (error) {
+        workspaceSettingsRef.current.set(workspaceId, previousSettings);
+        setWorkspaces((prev) =>
+          prev.map((entry) =>
+            entry.id === workspaceId
+              ? { ...entry, settings: previousSettings }
+              : entry,
+          ),
+        );
+        onDebug?.({
+          id: `${Date.now()}-client-pin-workspace-thread-error`,
+          timestamp: Date.now(),
+          source: "error",
+          label: "workspace/thread-pin error",
+          payload: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    },
+    [onDebug, setWorkspaces, workspaces, workspaceSettingsRef],
+  );
+
+  const unpinThread = useCallback(
+    async (workspaceId: string, threadId: string) => {
+      onDebug?.({
+        id: `${Date.now()}-client-unpin-workspace-thread`,
+        timestamp: Date.now(),
+        source: "client",
+        label: "workspace/thread-unpin",
+        payload: { workspaceId, threadId },
+      });
+      const currentWorkspace = workspaces.find((entry) => entry.id === workspaceId) ?? null;
+      const currentSettings =
+        workspaceSettingsRef.current.get(workspaceId) ?? currentWorkspace?.settings ?? null;
+      if (!currentWorkspace || !currentSettings) {
+        throw new Error("workspace not found");
+      }
+
+      const previousSettings = currentSettings;
+      const nextPinnedThreads = { ...getWorkspacePinnedThreads(currentSettings) };
+      delete nextPinnedThreads[threadId];
+      const nextSettings = { ...currentSettings, pinnedThreads: nextPinnedThreads };
+      workspaceSettingsRef.current.set(workspaceId, nextSettings);
+      setWorkspaces((prev) =>
+        prev.map((entry) =>
+          entry.id === workspaceId ? { ...entry, settings: nextSettings } : entry,
+        ),
+      );
+
+      try {
+        const updated = await unpinWorkspaceThreadService(workspaceId, threadId);
+        workspaceSettingsRef.current.set(workspaceId, updated.settings);
+        setWorkspaces((prev) =>
+          prev.map((entry) => (entry.id === workspaceId ? updated : entry)),
+        );
+        return updated;
+      } catch (error) {
+        workspaceSettingsRef.current.set(workspaceId, previousSettings);
+        setWorkspaces((prev) =>
+          prev.map((entry) =>
+            entry.id === workspaceId
+              ? { ...entry, settings: previousSettings }
+              : entry,
+          ),
+        );
+        onDebug?.({
+          id: `${Date.now()}-client-unpin-workspace-thread-error`,
+          timestamp: Date.now(),
+          source: "error",
+          label: "workspace/thread-unpin error",
+          payload: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    },
+    [onDebug, setWorkspaces, workspaces, workspaceSettingsRef],
+  );
+
   const removeWorkspace = useCallback(
     async (workspaceId: string) => {
       const childIds = new Set(
@@ -515,8 +632,10 @@ export function useWorkspaceCrud({
     connectWorkspace,
     filterWorkspacePaths,
     markWorkspaceConnected,
+    pinThread,
     refreshWorkspaces,
     removeWorkspace,
+    unpinThread,
     updateWorkspaceSettings,
   };
 }

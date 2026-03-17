@@ -24,7 +24,9 @@ pub(crate) fn apply_workspace_settings_update(
 ) -> Result<WorkspaceEntry, String> {
     match workspaces.get_mut(id) {
         Some(entry) => {
+            let pinned_threads = entry.settings.pinned_threads.clone();
             entry.settings = settings.clone();
+            entry.settings.pinned_threads = pinned_threads;
             Ok(entry.clone())
         }
         None => Err("workspace not found".to_string()),

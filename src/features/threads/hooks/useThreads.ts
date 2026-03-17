@@ -61,6 +61,11 @@ type UseThreadsOptions = {
     threadId: string,
     metadata: { modelId: string | null; effort: string | null },
   ) => void;
+  pinnedThreadsVersion?: number;
+  pinThread?: (workspaceId: string, threadId: string) => boolean;
+  unpinThread?: (workspaceId: string, threadId: string) => void;
+  isThreadPinned?: (workspaceId: string, threadId: string) => boolean;
+  getPinTimestamp?: (workspaceId: string, threadId: string) => number | null;
 };
 
 function buildWorkspaceThreadKey(workspaceId: string, threadId: string) {
@@ -68,6 +73,20 @@ function buildWorkspaceThreadKey(workspaceId: string, threadId: string) {
 }
 
 const CASCADE_ARCHIVE_SKIP_TTL_MS = 120_000;
+
+function defaultPinThread(_workspaceId: string, _threadId: string) {
+  return false;
+}
+
+function defaultUnpinThread(_workspaceId: string, _threadId: string) {}
+
+function defaultIsThreadPinned(_workspaceId: string, _threadId: string) {
+  return false;
+}
+
+function defaultGetPinTimestamp(_workspaceId: string, _threadId: string) {
+  return null;
+}
 
 export function useThreads({
   activeWorkspace,
@@ -88,6 +107,11 @@ export function useThreads({
   onMessageActivity,
   threadSortKey = "updated_at",
   onThreadCodexMetadataDetected,
+  pinnedThreadsVersion = 0,
+  pinThread = defaultPinThread,
+  unpinThread = defaultUnpinThread,
+  isThreadPinned = defaultIsThreadPinned,
+  getPinTimestamp = defaultGetPinTimestamp,
 }: UseThreadsOptions) {
   const maxItemsPerThread =
     chatHistoryScrollbackItems === undefined
@@ -130,13 +154,8 @@ export function useThreads({
   const {
     customNamesRef,
     threadActivityRef,
-    pinnedThreadsVersion,
     getCustomName,
     recordThreadActivity,
-    pinThread,
-    unpinThread,
-    isThreadPinned,
-    getPinTimestamp,
   } = useThreadStorage();
 
   const activeWorkspaceId = activeWorkspace?.id ?? null;

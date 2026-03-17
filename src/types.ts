@@ -1,5 +1,6 @@
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
+  pinnedThreads?: Record<string, number>;
   sortOrder?: number | null;
   groupId?: string | null;
   cloneSourceWorkspaceId?: string | null;

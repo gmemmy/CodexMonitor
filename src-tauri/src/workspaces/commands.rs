@@ -586,6 +586,70 @@ pub(crate) async fn update_workspace_settings(
 }
 
 #[tauri::command]
+pub(crate) async fn pin_workspace_thread(
+    workspace_id: String,
+    thread_id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<WorkspaceInfo, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let request = workspace_rpc::WorkspaceThreadPinRequest {
+            workspace_id,
+            thread_id,
+        };
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "pin_workspace_thread",
+            workspace_remote_params(&request)?,
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    workspaces_core::pin_workspace_thread_core(
+        workspace_id,
+        thread_id,
+        &state.workspaces,
+        &state.sessions,
+        &state.storage_path,
+    )
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn unpin_workspace_thread(
+    workspace_id: String,
+    thread_id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<WorkspaceInfo, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let request = workspace_rpc::WorkspaceThreadPinRequest {
+            workspace_id,
+            thread_id,
+        };
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "unpin_workspace_thread",
+            workspace_remote_params(&request)?,
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    workspaces_core::unpin_workspace_thread_core(
+        workspace_id,
+        thread_id,
+        &state.workspaces,
+        &state.sessions,
+        &state.storage_path,
+    )
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn connect_workspace(
     id: String,
     state: State<'_, AppState>,

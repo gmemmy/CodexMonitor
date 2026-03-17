@@ -177,6 +177,28 @@ pub(super) async fn try_handle(
                 .await,
             )
         }
+        "pin_workspace_thread" => {
+            let request =
+                parse_request_or_err!(params, workspace_rpc::WorkspaceThreadPinRequest);
+            Some(
+                serialize_result(state.pin_workspace_thread(
+                    request.workspace_id,
+                    request.thread_id,
+                ))
+                .await,
+            )
+        }
+        "unpin_workspace_thread" => {
+            let request =
+                parse_request_or_err!(params, workspace_rpc::WorkspaceThreadPinRequest);
+            Some(
+                serialize_result(state.unpin_workspace_thread(
+                    request.workspace_id,
+                    request.thread_id,
+                ))
+                .await,
+            )
+        }
         "list_workspace_files" => {
             let request = parse_request_or_err!(params, workspace_rpc::WorkspaceIdRequest);
             Some(serialize_result(state.list_workspace_files(request.workspace_id)).await)

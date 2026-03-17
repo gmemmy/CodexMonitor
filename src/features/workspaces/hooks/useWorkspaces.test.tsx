@@ -8,14 +8,17 @@ import {
   connectWorkspace as connectWorkspaceService,
   isWorkspacePathDir,
   listWorkspaces,
+  pinWorkspaceThread,
   renameWorktree,
   renameWorktreeUpstream,
+  unpinWorkspaceThread,
   updateWorkspaceSettings,
 } from "../../../services/tauri";
 import { useWorkspaces } from "./useWorkspaces";
 
 vi.mock("../../../services/tauri", () => ({
   listWorkspaces: vi.fn(),
+  pinWorkspaceThread: vi.fn(),
   renameWorktree: vi.fn(),
   renameWorktreeUpstream: vi.fn(),
   addClone: vi.fn(),
@@ -27,6 +30,7 @@ vi.mock("../../../services/tauri", () => ({
   pickWorkspacePaths: vi.fn(),
   removeWorkspace: vi.fn(),
   removeWorktree: vi.fn(),
+  unpinWorkspaceThread: vi.fn(),
   updateWorkspaceSettings: vi.fn(),
 }));
 
@@ -221,6 +225,148 @@ describe("useWorkspaces.updateWorkspaceSettings", () => {
       result.current.workspaces.find((entry) => entry.id === workspaceTwo.id)
         ?.settings.sidebarCollapsed,
     ).toBe(true);
+  });
+});
+
+describe("useWorkspaces.thread pinning", () => {
+  it("pins threads through the backend contract and keeps timestamp ordering metadata", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    const pinWorkspaceThreadMock = vi.mocked(pinWorkspaceThread);
+    listWorkspacesMock.mockResolvedValue([workspaceOne]);
+
+    let resolvePin: (value: WorkspaceInfo) => void = () => {};
+    const pinPromise = new Promise<WorkspaceInfo>((resolve) => {
+      resolvePin = resolve;
+    });
+    pinWorkspaceThreadMock.mockReturnValue(pinPromise);
+
+    const { result } = renderHook(() => useWorkspaces());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    let pinResult = false;
+    act(() => {
+      pinResult = result.current.pinThread("ws-1", "thread-1");
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(pinResult).toBe(true);
+    expect(result.current.isThreadPinned("ws-1", "thread-1")).toBe(true);
+    expect(result.current.getPinTimestamp("ws-1", "thread-1")).toEqual(expect.any(Number));
+
+    resolvePin({
+      ...workspaceOne,
+      settings: {
+        ...workspaceOne.settings,
+        pinnedThreads: { "thread-1": 456 },
+      },
+    });
+
+    await act(async () => {
+      await pinPromise;
+    });
+
+    expect(pinWorkspaceThreadMock).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(result.current.getPinTimestamp("ws-1", "thread-1")).toBe(456);
+    expect(result.current.pinnedThreadsVersion).toBeGreaterThan(0);
+  });
+
+  it("unpins threads through the backend contract", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    const unpinWorkspaceThreadMock = vi.mocked(unpinWorkspaceThread);
+    listWorkspacesMock.mockResolvedValue([
+      {
+        ...workspaceOne,
+        settings: {
+          ...workspaceOne.settings,
+          pinnedThreads: { "thread-1": 123 },
+        },
+      },
+    ]);
+    unpinWorkspaceThreadMock.mockResolvedValue({
+      ...workspaceOne,
+      settings: { ...workspaceOne.settings, pinnedThreads: {} },
+    });
+
+    const { result } = renderHook(() => useWorkspaces());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      result.current.unpinThread("ws-1", "thread-1");
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(unpinWorkspaceThreadMock).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(result.current.isThreadPinned("ws-1", "thread-1")).toBe(false);
+    expect(result.current.getPinTimestamp("ws-1", "thread-1")).toBeNull();
+  });
+
+  it("warns on the soft limit but still pins", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    const pinWorkspaceThreadMock = vi.mocked(pinWorkspaceThread);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    listWorkspacesMock.mockResolvedValue([
+      {
+        ...workspaceOne,
+        settings: {
+          ...workspaceOne.settings,
+          pinnedThreads: {
+            "thread-1": 1,
+            "thread-2": 2,
+            "thread-3": 3,
+            "thread-4": 4,
+            "thread-5": 5,
+          },
+        },
+      },
+    ]);
+    pinWorkspaceThreadMock.mockResolvedValue({
+      ...workspaceOne,
+      settings: {
+        ...workspaceOne.settings,
+        pinnedThreads: {
+          "thread-1": 1,
+          "thread-2": 2,
+          "thread-3": 3,
+          "thread-4": 4,
+          "thread-5": 5,
+          "thread-6": 6,
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useWorkspaces());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    let pinResult = false;
+    act(() => {
+      pinResult = result.current.pinThread("ws-1", "thread-6");
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(pinResult).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Pin limit reached (5). Consider unpinning some threads.",
+    );
+    expect(pinWorkspaceThreadMock).toHaveBeenCalledWith("ws-1", "thread-6");
+    warnSpy.mockRestore();
   });
 });
 

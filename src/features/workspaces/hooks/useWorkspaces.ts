@@ -17,6 +17,11 @@ import {
   sortWorkspaceGroups,
 } from "../domain/workspaceGroups";
 import {
+  MAX_PINS_SOFT_LIMIT,
+  buildPinnedThreadsVersionKey,
+  getWorkspacePinnedThreads,
+} from "../utils/pinnedThreads";
+import {
   useWorkspaceCrud,
   type AddWorkspacesFromPathsResult,
 } from "./useWorkspaceCrud";
@@ -64,6 +69,11 @@ export type UseWorkspacesResult = {
   connectWorkspace: (entry: WorkspaceInfo) => Promise<void>;
   markWorkspaceConnected: (id: string) => void;
   updateWorkspaceSettings: (workspaceId: string, patch: Partial<WorkspaceSettings>) => Promise<WorkspaceInfo>;
+  pinnedThreadsVersion: number;
+  pinThread: (workspaceId: string, threadId: string) => boolean;
+  unpinThread: (workspaceId: string, threadId: string) => void;
+  isThreadPinned: (workspaceId: string, threadId: string) => boolean;
+  getPinTimestamp: (workspaceId: string, threadId: string) => number | null;
   createWorkspaceGroup: (name: string) => Promise<WorkspaceGroup | null>;
   renameWorkspaceGroup: (groupId: string, name: string) => Promise<true | null>;
   moveWorkspaceGroup: (groupId: string, direction: "up" | "down") => Promise<true | null>;
@@ -98,8 +108,10 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     connectWorkspace,
     filterWorkspacePaths,
     markWorkspaceConnected,
+    pinThread: pinWorkspaceThread,
     refreshWorkspaces,
     removeWorkspace,
+    unpinThread: unpinWorkspaceThread,
     updateWorkspaceSettings,
   } = useWorkspaceCrud({
     onDebug,
@@ -138,6 +150,18 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     [activeWorkspaceId, workspaces],
   );
 
+  const pinnedThreadsVersionKey = useMemo(
+    () => buildPinnedThreadsVersionKey(workspaces),
+    [workspaces],
+  );
+  const pinnedThreadsVersionKeyRef = useRef<string | null>(null);
+  const pinnedThreadsVersionRef = useRef(0);
+  if (pinnedThreadsVersionKeyRef.current !== pinnedThreadsVersionKey) {
+    pinnedThreadsVersionKeyRef.current = pinnedThreadsVersionKey;
+    pinnedThreadsVersionRef.current += 1;
+  }
+  const pinnedThreadsVersion = pinnedThreadsVersionRef.current;
+
   const replaceWorkspaceState = useCallback(
     (
       nextWorkspaces: WorkspaceInfo[],
@@ -168,6 +192,51 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
   );
 
   const workspaceById = useMemo(() => buildWorkspaceById(workspaces), [workspaces]);
+
+  const isThreadPinned = useCallback(
+    (workspaceId: string, threadId: string) =>
+      threadId in getWorkspacePinnedThreads(workspaceById.get(workspaceId)?.settings),
+    [workspaceById],
+  );
+
+  const getPinTimestamp = useCallback(
+    (workspaceId: string, threadId: string) =>
+      getWorkspacePinnedThreads(workspaceById.get(workspaceId)?.settings)[threadId] ?? null,
+    [workspaceById],
+  );
+
+  const pinThread = useCallback(
+    (workspaceId: string, threadId: string) => {
+      if (!workspaceById.has(workspaceId)) {
+        return false;
+      }
+      if (isThreadPinned(workspaceId, threadId)) {
+        return false;
+      }
+      const currentPins = getWorkspacePinnedThreads(workspaceById.get(workspaceId)?.settings);
+      if (Object.keys(currentPins).length >= MAX_PINS_SOFT_LIMIT) {
+        console.warn(
+          `Pin limit reached (${MAX_PINS_SOFT_LIMIT}). Consider unpinning some threads.`,
+        );
+      }
+      void pinWorkspaceThread(workspaceId, threadId).catch(() => {});
+      return true;
+    },
+    [isThreadPinned, pinWorkspaceThread, workspaceById],
+  );
+
+  const unpinThread = useCallback(
+    (workspaceId: string, threadId: string) => {
+      if (!workspaceById.has(workspaceId)) {
+        return;
+      }
+      if (!isThreadPinned(workspaceId, threadId)) {
+        return;
+      }
+      void unpinWorkspaceThread(workspaceId, threadId).catch(() => {});
+    },
+    [isThreadPinned, unpinWorkspaceThread, workspaceById],
+  );
 
   const workspaceGroups = useMemo(
     () => sortWorkspaceGroups(appSettings?.workspaceGroups ?? []),
@@ -237,6 +306,11 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     connectWorkspace,
     markWorkspaceConnected,
     updateWorkspaceSettings,
+    pinnedThreadsVersion,
+    pinThread,
+    unpinThread,
+    isThreadPinned,
+    getPinTimestamp,
     createWorkspaceGroup,
     renameWorkspaceGroup,
     moveWorkspaceGroup,

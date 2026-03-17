@@ -109,6 +109,9 @@ mod tests {
         settings.group_id = Some("group-42".to_string());
         settings.sidebar_collapsed = true;
         settings.git_root = Some("/tmp".to_string());
+        settings
+            .pinned_threads
+            .insert("thread-1".to_string(), 123);
 
         let entry = WorkspaceEntry {
             id: "w1".to_string(),
@@ -127,6 +130,7 @@ mod tests {
         assert_eq!(stored.settings.group_id.as_deref(), Some("group-42"));
         assert!(stored.settings.sidebar_collapsed);
         assert_eq!(stored.settings.git_root.as_deref(), Some("/tmp"));
+        assert_eq!(stored.settings.pinned_threads.get("thread-1"), Some(&123));
     }
 
     #[test]

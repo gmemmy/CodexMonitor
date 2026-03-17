@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -315,6 +317,8 @@ pub(crate) struct WorkspaceGroup {
 pub(crate) struct WorkspaceSettings {
     #[serde(default, rename = "sidebarCollapsed")]
     pub(crate) sidebar_collapsed: bool,
+    #[serde(default, rename = "pinnedThreads")]
+    pub(crate) pinned_threads: HashMap<String, i64>,
     #[serde(default, rename = "sortOrder")]
     pub(crate) sort_order: Option<u32>,
     #[serde(default, rename = "groupId")]

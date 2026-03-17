@@ -49,6 +49,7 @@ fn workspace_with_id_and_kind(
         worktree,
         settings: WorkspaceSettings {
             sidebar_collapsed: false,
+            pinned_threads: HashMap::new(),
             sort_order,
             group_id: None,
             clone_source_workspace_id: None,
@@ -254,6 +255,37 @@ fn update_workspace_settings_persists_sort_and_group() {
         stored.settings.worktree_setup_script.as_deref(),
         Some("pnpm install"),
     );
+}
+
+#[test]
+fn update_workspace_settings_preserves_pinned_threads() {
+    let id = "workspace-1".to_string();
+    let entry = WorkspaceEntry {
+        id: id.clone(),
+        name: "Workspace".to_string(),
+        path: "/tmp".to_string(),
+        kind: WorkspaceKind::Main,
+        parent_id: None,
+        worktree: None,
+        settings: WorkspaceSettings {
+            pinned_threads: HashMap::from([("thread-1".to_string(), 123)]),
+            ..WorkspaceSettings::default()
+        },
+    };
+    let mut workspaces = HashMap::from([(id.clone(), entry)]);
+
+    let updated = apply_workspace_settings_update(
+        &mut workspaces,
+        &id,
+        WorkspaceSettings {
+            sidebar_collapsed: true,
+            ..WorkspaceSettings::default()
+        },
+    )
+    .expect("update");
+
+    assert!(updated.settings.sidebar_collapsed);
+    assert_eq!(updated.settings.pinned_threads.get("thread-1"), Some(&123));
 }
 
 #[test]

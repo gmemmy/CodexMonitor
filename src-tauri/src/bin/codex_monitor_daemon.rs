@@ -525,6 +525,36 @@ impl DaemonState {
         .await
     }
 
+    async fn pin_workspace_thread(
+        &self,
+        workspace_id: String,
+        thread_id: String,
+    ) -> Result<WorkspaceInfo, String> {
+        workspaces_core::pin_workspace_thread_core(
+            workspace_id,
+            thread_id,
+            &self.workspaces,
+            &self.sessions,
+            &self.storage_path,
+        )
+        .await
+    }
+
+    async fn unpin_workspace_thread(
+        &self,
+        workspace_id: String,
+        thread_id: String,
+    ) -> Result<WorkspaceInfo, String> {
+        workspaces_core::unpin_workspace_thread_core(
+            workspace_id,
+            thread_id,
+            &self.workspaces,
+            &self.sessions,
+            &self.storage_path,
+        )
+        .await
+    }
+
     async fn connect_workspace(&self, id: String, client_version: String) -> Result<(), String> {
         {
             let sessions = self.sessions.lock().await;
@@ -1808,6 +1838,38 @@ mod tests {
                 listed.iter().any(|workspace| workspace.id == "ws-sync"),
                 "expected daemon list_workspaces to include workspace added on disk"
             );
+
+            let _ = std::fs::remove_dir_all(&tmp);
+        });
+    }
+
+    #[test]
+    fn pin_and_unpin_workspace_thread_persist_to_storage() {
+        run_async_test(async {
+            let tmp = make_temp_dir("pin-workspace-thread");
+            let state = test_state(&tmp);
+            let workspace_path = tmp.join("workspace");
+            insert_workspace(&state, "ws-pin", &workspace_path.to_string_lossy()).await;
+
+            let pinned = state
+                .pin_workspace_thread("ws-pin".to_string(), "thread-1".to_string())
+                .await
+                .expect("pin thread");
+            assert!(pinned.settings.pinned_threads.contains_key("thread-1"));
+
+            let stored = read_workspaces(&state.storage_path).expect("read workspaces");
+            let persisted = stored.get("ws-pin").expect("persisted workspace");
+            assert!(persisted.settings.pinned_threads.contains_key("thread-1"));
+
+            let unpinned = state
+                .unpin_workspace_thread("ws-pin".to_string(), "thread-1".to_string())
+                .await
+                .expect("unpin thread");
+            assert!(!unpinned.settings.pinned_threads.contains_key("thread-1"));
+
+            let stored = read_workspaces(&state.storage_path).expect("read workspaces");
+            let persisted = stored.get("ws-pin").expect("persisted workspace");
+            assert!(!persisted.settings.pinned_threads.contains_key("thread-1"));
 
             let _ = std::fs::remove_dir_all(&tmp);
         });

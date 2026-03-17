@@ -311,6 +311,20 @@ export async function updateWorkspaceSettings(
   return invoke<WorkspaceInfo>("update_workspace_settings", { id, settings });
 }
 
+export async function pinWorkspaceThread(
+  workspaceId: string,
+  threadId: string,
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("pin_workspace_thread", { workspaceId, threadId });
+}
+
+export async function unpinWorkspaceThread(
+  workspaceId: string,
+  threadId: string,
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("unpin_workspace_thread", { workspaceId, threadId });
+}
+
 export async function removeWorkspace(id: string): Promise<void> {
   return invoke("remove_workspace", { id });
 }
