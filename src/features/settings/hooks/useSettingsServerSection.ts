@@ -21,6 +21,7 @@ type UseSettingsServerSectionArgs = {
   appSettings: AppSettings;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   onMobileConnectSuccess?: () => Promise<void> | void;
+  onSelectSavedRemoteBackend?: (id: string) => Promise<string>;
 };
 
 export type AddRemoteBackendDraft = {
@@ -38,6 +39,7 @@ export type SettingsServerSectionProps = {
   mobileConnectStatusError: boolean;
   remoteBackends: AppSettings["remoteBackends"];
   activeRemoteBackendId: string | null;
+  remoteSwitchingId: string | null;
   remoteStatusText: string | null;
   remoteStatusError: boolean;
   remoteNameError: string | null;
@@ -146,6 +148,7 @@ export const useSettingsServerSection = ({
   appSettings,
   onUpdateAppSettings,
   onMobileConnectSuccess,
+  onSelectSavedRemoteBackend,
 }: UseSettingsServerSectionArgs): SettingsServerSectionProps => {
   const initialActiveRemoteBackend = getActiveRemoteBackend(appSettings);
   const [remoteNameDraft, setRemoteNameDraft] = useState(initialActiveRemoteBackend.name);
@@ -153,6 +156,7 @@ export const useSettingsServerSection = ({
   const [remoteTokenDraft, setRemoteTokenDraft] = useState(initialActiveRemoteBackend.token ?? "");
   const [remoteStatusText, setRemoteStatusText] = useState<string | null>(null);
   const [remoteStatusError, setRemoteStatusError] = useState(false);
+  const [remoteSwitchingId, setRemoteSwitchingId] = useState<string | null>(null);
   const [remoteNameError, setRemoteNameError] = useState<string | null>(null);
   const [remoteHostError, setRemoteHostError] = useState<string | null>(null);
   const [tailscaleStatus, setTailscaleStatus] = useState<TailscaleStatus | null>(null);
@@ -334,6 +338,22 @@ export const useSettingsServerSection = ({
     const candidates = getConfiguredRemoteBackends(latestSettings);
     const selected = candidates.find((entry) => entry.id === id);
     if (!selected) {
+      return;
+    }
+    if (onSelectSavedRemoteBackend) {
+      setRemoteSwitchingId(id);
+      setRemoteStatus(`Switching to "${selected.name}"...`);
+      try {
+        const message = await onSelectSavedRemoteBackend(id);
+        setRemoteStatus(message);
+      } catch (error) {
+        setRemoteStatus(
+          formatErrorMessage(error, `Unable to switch to "${selected.name}".`),
+          true,
+        );
+      } finally {
+        setRemoteSwitchingId(null);
+      }
       return;
     }
     await persistRemoteBackends(candidates, id);
@@ -647,6 +667,7 @@ export const useSettingsServerSection = ({
     remoteBackends: getConfiguredRemoteBackends(appSettings),
     activeRemoteBackendId:
       appSettings.activeRemoteBackendId ?? getConfiguredRemoteBackends(appSettings)[0]?.id ?? null,
+    remoteSwitchingId,
     remoteStatusText,
     remoteStatusError,
     remoteNameError,

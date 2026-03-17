@@ -38,6 +38,10 @@ export type UseWorkspacesResult = {
   activeWorkspace: WorkspaceInfo | null;
   activeWorkspaceId: string | null;
   setActiveWorkspaceId: (workspaceId: string | null) => void;
+  replaceWorkspaceState: (
+    workspaces: WorkspaceInfo[],
+    options?: { activeWorkspaceId?: string | null },
+  ) => void;
   addWorkspaceFromPath: (path: string, options?: { activate?: boolean }) => Promise<WorkspaceInfo | null>;
   addWorkspaceFromGitUrl: (
     url: string,
@@ -134,6 +138,35 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     [activeWorkspaceId, workspaces],
   );
 
+  const replaceWorkspaceState = useCallback(
+    (
+      nextWorkspaces: WorkspaceInfo[],
+      options?: { activeWorkspaceId?: string | null },
+    ) => {
+      setWorkspaces(nextWorkspaces);
+      setRemoteWorkspaceSyncState("fresh");
+      setLastRemoteSyncFailure(null);
+      setHasLoaded(true);
+      setActiveWorkspaceId(() => {
+        const preferredWorkspaceId = options?.activeWorkspaceId ?? null;
+        if (
+          preferredWorkspaceId &&
+          nextWorkspaces.some((workspace) => workspace.id === preferredWorkspaceId)
+        ) {
+          return preferredWorkspaceId;
+        }
+        return nextWorkspaces[0]?.id ?? null;
+      });
+    },
+    [
+      setActiveWorkspaceId,
+      setHasLoaded,
+      setLastRemoteSyncFailure,
+      setRemoteWorkspaceSyncState,
+      setWorkspaces,
+    ],
+  );
+
   const workspaceById = useMemo(() => buildWorkspaceById(workspaces), [workspaces]);
 
   const workspaceGroups = useMemo(
@@ -194,6 +227,7 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}): UseWorkspaces
     activeWorkspace,
     activeWorkspaceId,
     setActiveWorkspaceId,
+    replaceWorkspaceState,
     addWorkspaceFromPath,
     addWorkspaceFromGitUrl,
     addWorkspacesFromPaths,

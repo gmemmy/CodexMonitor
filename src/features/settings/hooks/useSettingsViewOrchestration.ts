@@ -51,6 +51,7 @@ type UseSettingsViewOrchestrationArgs = {
   onTestNotificationSound: () => void;
   onTestSystemNotification: () => void;
   onMobileConnectSuccess?: () => Promise<void> | void;
+  onSelectSavedRemoteBackend?: (id: string) => Promise<string>;
   onMoveWorkspace: (id: string, direction: "up" | "down") => void;
   onDeleteWorkspace: (id: string) => void;
   onCreateWorkspaceGroup: (name: string) => Promise<WorkspaceGroup | null>;
@@ -84,6 +85,7 @@ export function useSettingsViewOrchestration({
   onTestNotificationSound,
   onTestSystemNotification,
   onMobileConnectSuccess,
+  onSelectSavedRemoteBackend,
   onMoveWorkspace,
   onDeleteWorkspace,
   onCreateWorkspaceGroup,
@@ -186,6 +188,7 @@ export function useSettingsViewOrchestration({
     appSettings,
     onUpdateAppSettings,
     onMobileConnectSuccess,
+    onSelectSavedRemoteBackend,
   });
 
   const codexSectionProps = useSettingsCodexSection({

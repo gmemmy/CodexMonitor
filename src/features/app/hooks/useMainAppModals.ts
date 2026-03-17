@@ -124,6 +124,7 @@ type UseMainAppModalsArgs = {
     handleTestNotificationSound: () => void;
     handleTestSystemNotification: () => void;
     handleMobileConnectSuccess?: () => Promise<void> | void;
+    handleSelectSavedRemoteBackend?: (id: string) => Promise<string>;
     dictationModel: {
       status?: SettingsViewProps["dictationModelStatus"];
       download?: () => void;
@@ -278,6 +279,7 @@ export function useMainAppModals({
       onTestNotificationSound: settings.handleTestNotificationSound,
       onTestSystemNotification: settings.handleTestSystemNotification,
       onMobileConnectSuccess: settings.handleMobileConnectSuccess,
+      onSelectSavedRemoteBackend: settings.handleSelectSavedRemoteBackend,
       dictationModelStatus: settings.dictationModel.status,
       onDownloadDictationModel: settings.dictationModel.download,
       onCancelDictationDownload: settings.dictationModel.cancel,

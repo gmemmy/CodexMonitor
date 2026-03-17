@@ -20,6 +20,7 @@ type UseMainAppWorkspaceLifecycleArgs = {
   listThreadsForWorkspaces: (workspaces: WorkspaceInfo[]) => Promise<void>;
   refreshWorkspaces: () => Promise<void | WorkspaceInfo[]>;
   backendMode: "local" | "remote";
+  suspendRemoteSync?: boolean;
   activeWorkspace: WorkspaceInfo | null;
   activeThreadId: string | null;
   threadStatusById: Record<string, { isProcessing: boolean }>;
@@ -39,6 +40,7 @@ export function useMainAppWorkspaceLifecycle({
   listThreadsForWorkspaces,
   refreshWorkspaces,
   backendMode,
+  suspendRemoteSync = false,
   activeWorkspace,
   activeThreadId,
   threadStatusById,
@@ -58,6 +60,7 @@ export function useMainAppWorkspaceLifecycle({
   useWorkspaceRestore({
     workspaces,
     hasLoaded,
+    suspend: suspendRemoteSync,
     connectWorkspace,
     listThreadsForWorkspaces,
   });
@@ -67,6 +70,7 @@ export function useMainAppWorkspaceLifecycle({
     refreshWorkspaces,
     listThreadsForWorkspaces,
     backendMode,
+    suspendRefresh: suspendRemoteSync,
     pollIntervalMs: REMOTE_WORKSPACE_REFRESH_INTERVAL_MS,
   });
 
@@ -78,6 +82,7 @@ export function useMainAppWorkspaceLifecycle({
       activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
     ),
     suspendPolling:
+      suspendRemoteSync ||
       backendMode === "remote" && remoteThreadConnectionState === "live",
     reconnectWorkspace: connectWorkspace,
     refreshThread,

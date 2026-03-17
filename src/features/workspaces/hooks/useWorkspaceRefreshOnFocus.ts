@@ -12,6 +12,7 @@ type WorkspaceRefreshOptions = {
   ) => Promise<void>;
   backendMode?: string;
   pollIntervalMs?: number;
+  suspendRefresh?: boolean;
 };
 
 export function useWorkspaceRefreshOnFocus({
@@ -20,6 +21,7 @@ export function useWorkspaceRefreshOnFocus({
   listThreadsForWorkspaces,
   backendMode = "local",
   pollIntervalMs = REMOTE_WORKSPACE_REFRESH_INTERVAL_MS,
+  suspendRefresh = false,
 }: WorkspaceRefreshOptions) {
   const optionsRef = useRef({
     workspaces,
@@ -27,6 +29,7 @@ export function useWorkspaceRefreshOnFocus({
     listThreadsForWorkspaces,
     backendMode,
     pollIntervalMs,
+    suspendRefresh,
   });
   useEffect(() => {
     optionsRef.current = {
@@ -35,6 +38,7 @@ export function useWorkspaceRefreshOnFocus({
       listThreadsForWorkspaces,
       backendMode,
       pollIntervalMs,
+      suspendRefresh,
     };
   });
 
@@ -52,7 +56,12 @@ export function useWorkspaceRefreshOnFocus({
         workspaces: ws,
         refreshWorkspaces: refresh,
         listThreadsForWorkspaces: listThreads,
+        suspendRefresh: isSuspended,
       } = optionsRef.current;
+      if (isSuspended) {
+        refreshInFlight = false;
+        return;
+      }
       void (async () => {
         let latestWorkspaces = ws;
         let refreshSucceeded = false;
@@ -83,9 +92,16 @@ export function useWorkspaceRefreshOnFocus({
         clearInterval(pollTimer);
         pollTimer = null;
       }
-      const { backendMode: currentBackendMode, pollIntervalMs: intervalMs } =
-        optionsRef.current;
-      if (currentBackendMode !== "remote" || document.visibilityState !== "visible") {
+      const {
+        backendMode: currentBackendMode,
+        pollIntervalMs: intervalMs,
+        suspendRefresh: isSuspended,
+      } = optionsRef.current;
+      if (
+        isSuspended ||
+        currentBackendMode !== "remote" ||
+        document.visibilityState !== "visible"
+      ) {
         return;
       }
       pollTimer = setInterval(() => {
@@ -127,5 +143,5 @@ export function useWorkspaceRefreshOnFocus({
         clearInterval(pollTimer);
       }
     };
-  }, [backendMode, pollIntervalMs]);
+  }, [backendMode, pollIntervalMs, suspendRefresh]);
 }

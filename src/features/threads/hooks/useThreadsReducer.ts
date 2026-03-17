@@ -49,6 +49,7 @@ export type ThreadState = {
 };
 
 export type ThreadAction =
+  | { type: "resetState" }
   | { type: "setActiveThreadId"; workspaceId: string; threadId: string | null }
   | { type: "setMaxItemsPerThread"; maxItemsPerThread: number | null }
   | { type: "ensureThread"; workspaceId: string; threadId: string }
@@ -203,6 +204,12 @@ const threadSliceReducers: ThreadSliceReducer[] = [
 ];
 
 export function threadReducer(state: ThreadState, action: ThreadAction): ThreadState {
+  if (action.type === "resetState") {
+    return {
+      ...initialState,
+      maxItemsPerThread: state.maxItemsPerThread,
+    };
+  }
   for (const reduceSlice of threadSliceReducers) {
     const nextState = reduceSlice(state, action);
     if (nextState !== state) {

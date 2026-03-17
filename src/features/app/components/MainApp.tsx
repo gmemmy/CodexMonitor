@@ -61,6 +61,7 @@ import { useNewAgentDraft } from "@app/hooks/useNewAgentDraft";
 import { useSystemNotificationThreadLinks } from "@app/hooks/useSystemNotificationThreadLinks";
 import { useThreadListSortKey } from "@app/hooks/useThreadListSortKey";
 import { useThreadListActions } from "@app/hooks/useThreadListActions";
+import { useRemoteBackendHandoff } from "@app/hooks/useRemoteBackendHandoff";
 import { useRemoteThreadLiveConnection } from "@app/hooks/useRemoteThreadLiveConnection";
 import { useTrayRecentThreads } from "@app/hooks/useTrayRecentThreads";
 import { useTraySessionUsage } from "@app/hooks/useTraySessionUsage";
@@ -179,6 +180,7 @@ export default function MainApp() {
     deletingWorktreeIds,
     hasLoaded,
     refreshWorkspaces,
+    replaceWorkspaceState,
     remoteWorkspaceSyncState,
     lastRemoteSyncFailure,
   } = useWorkspaceController({
@@ -529,6 +531,7 @@ export default function MainApp() {
     listThreadsForWorkspace,
     loadOlderThreadsForWorkspace,
     resetWorkspaceThreads,
+    resetThreadState,
     refreshThread,
     sendUserMessage,
     sendUserMessageToThread,
@@ -588,6 +591,18 @@ export default function MainApp() {
     onThreadCodexMetadataDetected: handleThreadCodexMetadataDetected,
   });
   const {
+    handoffRemoteBackend,
+    handoffInProgress: remoteBackendHandoffInProgress,
+  } = useRemoteBackendHandoff({
+    appSettings,
+    setAppSettings,
+    activeWorkspace,
+    connectWorkspace,
+    replaceWorkspaceState,
+    resetThreadState,
+    listThreadsForWorkspace,
+  });
+  const {
     connectionState: remoteThreadConnectionState,
     lastFailure: remoteThreadLastFailure,
     clearSyncFailure: clearRemoteThreadSyncFailure,
@@ -597,6 +612,7 @@ export default function MainApp() {
   } =
     useRemoteThreadLiveConnection({
       backendMode: appSettings.backendMode,
+      suspendRemoteSync: remoteBackendHandoffInProgress,
       activeWorkspace,
       activeThreadId,
       activeThreadHasLocalSnapshot: hasLocalThreadSnapshot(activeThreadId),
@@ -1241,6 +1257,7 @@ export default function MainApp() {
       handleTestNotificationSound,
       handleTestSystemNotification,
       handleMobileConnectSuccess,
+      handleSelectSavedRemoteBackend: handoffRemoteBackend,
       dictationModel,
     },
   });
@@ -1438,6 +1455,7 @@ export default function MainApp() {
     listThreadsForWorkspaces,
     refreshWorkspaces,
     backendMode: appSettings.backendMode,
+    suspendRemoteSync: remoteBackendHandoffInProgress,
     activeWorkspace,
     activeThreadId,
     threadStatusById,
