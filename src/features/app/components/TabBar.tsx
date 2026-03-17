@@ -4,6 +4,7 @@ import GitBranch from "lucide-react/dist/esm/icons/git-branch";
 import House from "lucide-react/dist/esm/icons/house";
 import MessagesSquare from "lucide-react/dist/esm/icons/messages-square";
 import TerminalSquare from "lucide-react/dist/esm/icons/terminal-square";
+import { ShellVersionBadge } from "@app/components/ShellVersionBadge";
 
 type TabKey = "home" | "projects" | "codex" | "git" | "log";
 
@@ -23,18 +24,23 @@ const tabs: { id: TabKey; label: string; icon: ReactNode }[] = [
 export function TabBar({ activeTab, onSelect }: TabBarProps) {
   return (
     <nav className="tabbar" aria-label="Primary">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          className={`tabbar-item ${activeTab === tab.id ? "active" : ""}`}
-          onClick={() => onSelect(tab.id)}
-          aria-current={activeTab === tab.id ? "page" : undefined}
-        >
-          {tab.icon}
-          <span className="tabbar-label">{tab.label}</span>
-        </button>
-      ))}
+      <div className="tabbar-version">
+        <ShellVersionBadge />
+      </div>
+      <div className="tabbar-items">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tabbar-item ${activeTab === tab.id ? "active" : ""}`}
+            onClick={() => onSelect(tab.id)}
+            aria-current={activeTab === tab.id ? "page" : undefined}
+          >
+            {tab.icon}
+            <span className="tabbar-label">{tab.label}</span>
+          </button>
+        ))}
+      </div>
     </nav>
   );
 }
