@@ -493,6 +493,9 @@ export default function MainApp() {
   const {
     setActiveThreadId,
     hasLocalThreadSnapshot,
+    bumpWorkspaceFreshnessBoundary,
+    markThreadFreshAtCurrentBoundary: markThreadFreshInThreadState,
+    shouldRefreshForFreshnessBoundary,
     activeThreadId,
     activeItems,
     approvals,
@@ -655,10 +658,16 @@ export default function MainApp() {
       suspendRemoteSync: remoteBackendHandoffInProgress,
       activeWorkspace,
       activeThreadId,
-      activeThreadHasLocalSnapshot: hasLocalThreadSnapshot(activeThreadId),
+      activeThreadHasLocalSnapshot: hasLocalThreadSnapshot(
+        activeWorkspace?.id ?? null,
+        activeThreadId,
+      ),
       activeThreadIsProcessing,
       refreshThread,
       reconnectWorkspace: connectWorkspace,
+      bumpWorkspaceFreshnessBoundary,
+      markThreadFreshAtCurrentBoundary: markThreadFreshInThreadState,
+      shouldRefreshForFreshnessBoundary,
     });
 
   const handleRemoteThreadRefreshFailure = useCallback(

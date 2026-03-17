@@ -132,6 +132,8 @@ export function useThreads({
   const loadedThreadsRef = useRef<Record<string, boolean>>({});
   const replaceOnResumeRef = useRef<Record<string, boolean>>({});
   const pendingInterruptsRef = useRef<Set<string>>(new Set());
+  const workspaceFreshnessBoundaryRef = useRef<Record<string, number>>({});
+  const threadFreshnessBoundaryRef = useRef<Record<string, number>>({});
   const planByThreadRef = useRef(state.planByThread);
   const itemsByThreadRef = useRef(state.itemsByThread);
   const threadsByWorkspaceRef = useRef(state.threadsByWorkspace);
@@ -203,6 +205,46 @@ export function useThreads({
       // Ignore refresh errors to avoid breaking the UI.
     }
   }, [onMessageActivity]);
+
+  const bumpWorkspaceFreshnessBoundary = useCallback(
+    (workspaceId: string | null | undefined) => {
+      if (!workspaceId) {
+        return;
+      }
+      workspaceFreshnessBoundaryRef.current[workspaceId] =
+        (workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0) + 1;
+    },
+    [],
+  );
+
+  const markThreadFreshAtCurrentBoundary = useCallback(
+    (workspaceId: string, threadId: string) => {
+      if (!workspaceId || !threadId) {
+        return;
+      }
+      threadFreshnessBoundaryRef.current[buildWorkspaceThreadKey(workspaceId, threadId)] =
+        workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0;
+    },
+    [],
+  );
+
+  const shouldRefreshForFreshnessBoundary = useCallback(
+    (workspaceId: string, threadId: string) => {
+      if (!workspaceId || !threadId) {
+        return false;
+      }
+      const boundary = workspaceFreshnessBoundaryRef.current[workspaceId] ?? 0;
+      if (boundary <= 0) {
+        return false;
+      }
+      return (
+        (threadFreshnessBoundaryRef.current[
+          buildWorkspaceThreadKey(workspaceId, threadId)
+        ] ?? 0) < boundary
+      );
+    },
+    [],
+  );
 
   const setThreadLoaded = useCallback((threadId: string, isLoaded: boolean) => {
     loadedThreadsRef.current[threadId] = isLoaded;
@@ -582,6 +624,8 @@ export function useThreads({
     updateThreadParent,
     onSubagentThreadDetected,
     onThreadCodexMetadataDetected,
+    markThreadFreshAtCurrentBoundary,
+    shouldRefreshForFreshnessBoundary,
   });
 
   const ensureWorkspaceRuntimeCodexArgsBestEffort = useCallback(
@@ -647,6 +691,22 @@ export function useThreads({
     [hasProcessingThreadInWorkspace],
   );
 
+  const hasLocalThreadSnapshot = useCallback(
+    (workspaceId: string | null | undefined, threadId: string | null) => {
+      if (!workspaceId || !threadId) {
+        return false;
+      }
+      const hasLocalSnapshot =
+        loadedThreadsRef.current[threadId] === true ||
+        (itemsByThreadRef.current[threadId]?.length ?? 0) > 0;
+      if (!hasLocalSnapshot) {
+        return false;
+      }
+      return !shouldRefreshForFreshnessBoundary(workspaceId, threadId);
+    },
+    [itemsByThreadRef, loadedThreadsRef, shouldRefreshForFreshnessBoundary],
+  );
+
   const startThreadForWorkspace = useCallback(
     async (workspaceId: string, options?: { activate?: boolean }) => {
       await ensureWorkspaceRuntimeCodexArgsBestEffort(workspaceId, null, "start");
@@ -672,7 +732,7 @@ export function useThreads({
       if (!threadId) {
         return null;
       }
-    } else if (!loadedThreadsRef.current[threadId]) {
+    } else if (!hasLocalThreadSnapshot(activeWorkspace.id, threadId)) {
       await ensureWorkspaceRuntimeCodexArgsBestEffort(
         activeWorkspace.id,
         threadId,
@@ -685,6 +745,7 @@ export function useThreads({
     activeWorkspace,
     activeThreadId,
     ensureWorkspaceRuntimeCodexArgsBestEffort,
+    hasLocalThreadSnapshot,
     resumeThreadForWorkspace,
     startThreadForWorkspace,
   ]);
@@ -701,7 +762,7 @@ export function useThreads({
         if (!threadId) {
           return null;
         }
-      } else if (!loadedThreadsRef.current[threadId]) {
+      } else if (!hasLocalThreadSnapshot(workspaceId, threadId)) {
         await ensureWorkspaceRuntimeCodexArgsBestEffort(workspaceId, threadId, "resume");
         await resumeThreadForWorkspace(workspaceId, threadId);
       }
@@ -714,7 +775,7 @@ export function useThreads({
       activeWorkspaceId,
       dispatch,
       ensureWorkspaceRuntimeCodexArgsBestEffort,
-      loadedThreadsRef,
+      hasLocalThreadSnapshot,
       resumeThreadForWorkspace,
       startThreadForWorkspace,
       state.activeThreadIdByWorkspace,
@@ -790,19 +851,6 @@ export function useThreads({
     renameThread,
   });
 
-  const hasLocalThreadSnapshot = useCallback(
-    (threadId: string | null) => {
-      if (!threadId) {
-        return false;
-      }
-      return (
-        loadedThreadsRef.current[threadId] === true ||
-        (itemsByThreadRef.current[threadId]?.length ?? 0) > 0
-      );
-    },
-    [itemsByThreadRef, loadedThreadsRef],
-  );
-
   const setActiveThreadId = useCallback(
     (threadId: string | null, workspaceId?: string) => {
       const targetId = workspaceId ?? activeWorkspaceId;
@@ -822,7 +870,7 @@ export function useThreads({
       }
       if (threadId) {
         void (async () => {
-          const hasLocalSnapshot = hasLocalThreadSnapshot(threadId);
+          const hasLocalSnapshot = hasLocalThreadSnapshot(targetId, threadId);
           if (hasLocalSnapshot) {
             loadedThreadsRef.current[threadId] = true;
             return;
@@ -859,6 +907,8 @@ export function useThreads({
     loadedThreadsRef.current = {};
     replaceOnResumeRef.current = {};
     pendingInterruptsRef.current = new Set();
+    workspaceFreshnessBoundaryRef.current = {};
+    threadFreshnessBoundaryRef.current = {};
     detachedReviewStartedNoticeRef.current = new Set();
     detachedReviewCompletedNoticeRef.current = new Set();
     detachedReviewParentByChildRef.current = {};
@@ -871,6 +921,9 @@ export function useThreads({
     activeThreadId,
     setActiveThreadId,
     hasLocalThreadSnapshot,
+    bumpWorkspaceFreshnessBoundary,
+    markThreadFreshAtCurrentBoundary,
+    shouldRefreshForFreshnessBoundary,
     activeItems,
     approvals: state.approvals,
     userInputRequests: state.userInputRequests,

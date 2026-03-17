@@ -611,6 +611,91 @@ describe("useThreads UX integration", () => {
     expect(hasRemote).toBe(false);
   });
 
+  it("refreshes selected threads when a reconnect boundary makes the local snapshot stale", async () => {
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-3",
+          preview: "Remote preview",
+          updated_at: 9999,
+          turns: [
+            {
+              items: [
+                {
+                  type: "userMessage",
+                  id: "server-user-1",
+                  content: [{ type: "text", text: "Remote hello" }],
+                },
+                {
+                  type: "agentMessage",
+                  id: "server-assistant-1",
+                  text: "Remote response",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+        ensureWorkspaceRuntimeCodexArgs,
+      }),
+    );
+
+    expect(handlers).not.toBeNull();
+
+    act(() => {
+      handlers?.onAgentMessageCompleted?.({
+        workspaceId: "ws-1",
+        threadId: "thread-3",
+        itemId: "local-assistant-1",
+        text: "Local response",
+      });
+      result.current.bumpWorkspaceFreshnessBoundary("ws-1");
+    });
+
+    expect(result.current.hasLocalThreadSnapshot("ws-1", "thread-3")).toBe(false);
+
+    act(() => {
+      result.current.setActiveThreadId("thread-3");
+    });
+
+    await waitFor(() => {
+      expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", "thread-3");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-3");
+    });
+
+    await waitFor(() => {
+      const activeItems = result.current.activeItems;
+      expect(
+        activeItems.some(
+          (item) => item.kind === "message" && item.id === "server-assistant-1",
+        ),
+      ).toBe(true);
+    });
+
+    const activeItems = result.current.activeItems;
+    const hasLocal = activeItems.some(
+      (item) =>
+        item.kind === "message" &&
+        item.role === "assistant" &&
+        item.id === "local-assistant-1",
+    );
+    const hasRemote = activeItems.some(
+      (item) => item.kind === "message" && item.id === "server-user-1",
+    );
+    expect(hasLocal).toBe(false);
+    expect(hasRemote).toBe(true);
+    expect(result.current.shouldRefreshForFreshnessBoundary("ws-1", "thread-3")).toBe(
+      false,
+    );
+  });
+
   it("clears empty plan updates to null", () => {
     const { result } = renderHook(() =>
       useThreads({
