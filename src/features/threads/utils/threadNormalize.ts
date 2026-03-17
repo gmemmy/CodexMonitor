@@ -1,6 +1,5 @@
 import type {
   CreditsSnapshot,
-  RateLimitWindow,
   RateLimitSnapshot,
   ReviewTarget,
   ThreadTokenUsage,
@@ -47,31 +46,19 @@ function hasOwn(source: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(source, key);
 }
 
-function readOptionalNumber(
-  candidate: unknown,
-  fallback: number | null,
-): number | null {
-  const parsed = asFiniteNumber(candidate);
-  return parsed !== null ? parsed : fallback;
-}
-
 function normalizeRateLimitWindow(
   source: Record<string, unknown>,
-  previousWindow: RateLimitWindow | null,
-): RateLimitWindow | null {
+): RateLimitSnapshot["primary"] {
   const directUsed = asFiniteNumber(source.usedPercent ?? source.used_percent);
   const remaining = asFiniteNumber(
     source.remainingPercent ?? source.remaining_percent ?? source.remaining,
   );
-
-  let usedPercent: number | null = null;
-  if (directUsed !== null) {
-    usedPercent = clampPercent(directUsed);
-  } else if (remaining !== null) {
-    usedPercent = clampPercent(100 - remaining);
-  } else if (previousWindow) {
-    usedPercent = previousWindow.usedPercent;
-  }
+  const usedPercent =
+    directUsed !== null
+      ? clampPercent(directUsed)
+      : remaining !== null
+        ? clampPercent(100 - remaining)
+        : null;
 
   if (usedPercent === null) {
     return null;
@@ -79,20 +66,15 @@ function normalizeRateLimitWindow(
 
   return {
     usedPercent,
-    windowDurationMins: readOptionalNumber(
+    windowDurationMins: asFiniteNumber(
       source.windowDurationMins ?? source.window_duration_mins,
-      previousWindow?.windowDurationMins ?? null,
     ),
-    resetsAt: readOptionalNumber(
-      source.resetsAt ?? source.resets_at,
-      previousWindow?.resetsAt ?? null,
-    ),
+    resetsAt: asFiniteNumber(source.resetsAt ?? source.resets_at),
   };
 }
 
 function normalizeCreditsSnapshot(
   source: Record<string, unknown>,
-  previousCredits: CreditsSnapshot | null,
 ): CreditsSnapshot {
   const hasCreditsRaw = source.hasCredits ?? source.has_credits;
   const unlimitedRaw = source.unlimited;
@@ -100,19 +82,14 @@ function normalizeCreditsSnapshot(
 
   return {
     hasCredits:
-      typeof hasCreditsRaw === "boolean"
-        ? hasCreditsRaw
-        : previousCredits?.hasCredits ?? false,
-    unlimited:
-      typeof unlimitedRaw === "boolean"
-        ? unlimitedRaw
-        : previousCredits?.unlimited ?? false,
+      typeof hasCreditsRaw === "boolean" ? hasCreditsRaw : false,
+    unlimited: typeof unlimitedRaw === "boolean" ? unlimitedRaw : false,
     balance:
       typeof balanceRaw === "string"
         ? balanceRaw
         : balanceRaw === null
           ? null
-          : previousCredits?.balance ?? null,
+          : null,
   };
 }
 
@@ -230,12 +207,7 @@ export function normalizeTokenUsage(
 
 export function normalizeRateLimits(
   raw: Record<string, unknown>,
-  previous: RateLimitSnapshot | null = null,
 ): RateLimitSnapshot {
-  const previousPrimary = previous?.primary ?? null;
-  const previousSecondary = previous?.secondary ?? null;
-  const previousCredits = previous?.credits ?? null;
-
   const primary =
     hasOwn(raw, "primary")
       ? raw.primary === null
@@ -243,12 +215,9 @@ export function normalizeRateLimits(
         : raw.primary &&
             typeof raw.primary === "object" &&
             !Array.isArray(raw.primary)
-          ? normalizeRateLimitWindow(
-              raw.primary as Record<string, unknown>,
-              previousPrimary,
-            )
-          : previousPrimary
-      : previousPrimary;
+          ? normalizeRateLimitWindow(raw.primary as Record<string, unknown>)
+          : null
+      : null;
 
   const secondary =
     hasOwn(raw, "secondary")
@@ -257,12 +226,9 @@ export function normalizeRateLimits(
         : raw.secondary &&
             typeof raw.secondary === "object" &&
             !Array.isArray(raw.secondary)
-          ? normalizeRateLimitWindow(
-              raw.secondary as Record<string, unknown>,
-              previousSecondary,
-            )
-          : previousSecondary
-      : previousSecondary;
+          ? normalizeRateLimitWindow(raw.secondary as Record<string, unknown>)
+          : null
+      : null;
 
   const credits =
     hasOwn(raw, "credits")
@@ -271,14 +237,10 @@ export function normalizeRateLimits(
         : raw.credits &&
             typeof raw.credits === "object" &&
             !Array.isArray(raw.credits)
-          ? normalizeCreditsSnapshot(
-              raw.credits as Record<string, unknown>,
-              previousCredits,
-            )
-          : previousCredits
-      : previousCredits;
+          ? normalizeCreditsSnapshot(raw.credits as Record<string, unknown>)
+          : null
+      : null;
 
-  const hasPlanTypeKey = hasOwn(raw, "planType") || hasOwn(raw, "plan_type");
   const planTypeValue =
     typeof raw.planType === "string"
       ? raw.planType
@@ -290,7 +252,7 @@ export function normalizeRateLimits(
     primary,
     secondary,
     credits,
-    planType: planTypeValue ?? (hasPlanTypeKey ? null : previous?.planType ?? null),
+    planType: planTypeValue ?? null,
   };
 }
 

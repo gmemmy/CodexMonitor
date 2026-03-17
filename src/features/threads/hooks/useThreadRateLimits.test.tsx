@@ -96,39 +96,26 @@ describe("useThreadRateLimits", () => {
     });
   });
 
-  it("does not auto-refresh again when accessor callback identity changes", async () => {
+  it("does not auto-refresh again after a no-op rerender", async () => {
     const dispatch = vi.fn();
 
     vi.mocked(getAccountRateLimits).mockResolvedValue({
       result: { rate_limits: {} },
     });
 
-    const { rerender } = renderHook(
-      ({
-        getCurrentRateLimits,
-      }: {
-        getCurrentRateLimits: (workspaceId: string) => null;
-      }) =>
-        useThreadRateLimits({
-          activeWorkspaceId: "ws-1",
-          activeWorkspaceConnected: true,
-          dispatch,
-          getCurrentRateLimits,
-        }),
-      {
-        initialProps: {
-          getCurrentRateLimits: () => null,
-        },
-      },
+    const { rerender } = renderHook(() =>
+      useThreadRateLimits({
+        activeWorkspaceId: "ws-1",
+        activeWorkspaceConnected: true,
+        dispatch,
+      }),
     );
 
     await waitFor(() => {
       expect(getAccountRateLimits).toHaveBeenCalledTimes(1);
     });
 
-    rerender({
-      getCurrentRateLimits: () => null,
-    });
+    rerender();
 
     await act(async () => {
       await Promise.resolve();
@@ -165,33 +152,16 @@ describe("useThreadRateLimits", () => {
     );
   });
 
-  it("merges partial payloads with previous workspace rate limits", async () => {
+  it("treats partial payloads as authoritative instead of merging local cache", async () => {
     const dispatch = vi.fn();
-    const previousRateLimits = {
-      primary: {
-        usedPercent: 42,
-        windowDurationMins: 60,
-        resetsAt: 12345,
-      },
-      secondary: {
-        usedPercent: 70,
-        windowDurationMins: 10080,
-        resetsAt: 99999,
-      },
-      credits: {
-        hasCredits: true,
-        unlimited: false,
-        balance: "5",
-      },
-      planType: "pro",
-    } as const;
+    const rawRateLimits = {
+      primary: { resets_at: 88888 },
+      secondary: {},
+    };
 
     vi.mocked(getAccountRateLimits).mockResolvedValue({
       result: {
-        rate_limits: {
-          primary: { resets_at: 88888 },
-          secondary: {},
-        },
+        rate_limits: rawRateLimits,
       },
     });
 
@@ -199,7 +169,6 @@ describe("useThreadRateLimits", () => {
       useThreadRateLimits({
         activeWorkspaceId: "ws-1",
         dispatch,
-        getCurrentRateLimits: () => previousRateLimits,
       }),
     );
 
@@ -210,24 +179,7 @@ describe("useThreadRateLimits", () => {
     expect(dispatch).toHaveBeenCalledWith({
       type: "setRateLimits",
       workspaceId: "ws-1",
-      rateLimits: {
-        primary: {
-          usedPercent: 42,
-          windowDurationMins: 60,
-          resetsAt: 88888,
-        },
-        secondary: {
-          usedPercent: 70,
-          windowDurationMins: 10080,
-          resetsAt: 99999,
-        },
-        credits: {
-          hasCredits: true,
-          unlimited: false,
-          balance: "5",
-        },
-        planType: "pro",
-      },
+      rateLimits: normalizeRateLimits(rawRateLimits),
     });
   });
 });

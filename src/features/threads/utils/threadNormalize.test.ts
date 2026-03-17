@@ -61,55 +61,6 @@ describe("normalizeRootPath", () => {
 });
 
 describe("normalizeRateLimits", () => {
-  it("preserves previous usage when incoming payload omits usage percent", () => {
-    const previous = {
-      primary: {
-        usedPercent: 22,
-        windowDurationMins: 60,
-        resetsAt: 1_700_000_000,
-      },
-      secondary: {
-        usedPercent: 64,
-        windowDurationMins: 10_080,
-        resetsAt: 1_700_000_500,
-      },
-      credits: {
-        hasCredits: true,
-        unlimited: false,
-        balance: "120",
-      },
-      planType: "pro",
-    } as const;
-
-    const normalized = normalizeRateLimits(
-      {
-        primary: { resets_at: 1_700_000_777 },
-        secondary: {},
-        credits: { balance: "110" },
-      },
-      previous,
-    );
-
-    expect(normalized).toEqual({
-      primary: {
-        usedPercent: 22,
-        windowDurationMins: 60,
-        resetsAt: 1_700_000_777,
-      },
-      secondary: {
-        usedPercent: 64,
-        windowDurationMins: 10_080,
-        resetsAt: 1_700_000_500,
-      },
-      credits: {
-        hasCredits: true,
-        unlimited: false,
-        balance: "110",
-      },
-      planType: "pro",
-    });
-  });
-
   it("does not fabricate usage percent when none exists", () => {
     const normalized = normalizeRateLimits({
       primary: {
@@ -137,5 +88,24 @@ describe("normalizeRateLimits", () => {
     expect(normalized.primary?.windowDurationMins).toBe(60);
     expect(normalized.secondary?.usedPercent).toBe(60);
     expect(normalized.secondary?.windowDurationMins).toBe(10_080);
+  });
+
+  it("does not preserve stale credits or plan type when the payload omits them", () => {
+    const normalized = normalizeRateLimits({
+      primary: {
+        used_percent: 25,
+      },
+    });
+
+    expect(normalized).toEqual({
+      primary: {
+        usedPercent: 25,
+        windowDurationMins: null,
+        resetsAt: null,
+      },
+      secondary: null,
+      credits: null,
+      planType: null,
+    });
   });
 });
