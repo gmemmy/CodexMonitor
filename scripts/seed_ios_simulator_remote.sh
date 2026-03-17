@@ -5,12 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 SIMULATOR_NAME="${SIMULATOR_NAME:-iPhone Air}"
+SIMULATOR_DEVICE_ID="${SIMULATOR_DEVICE_ID:-B3F01E53-3DCC-4326-8A29-BFA2B5986505}"
 BUNDLE_ID="${BUNDLE_ID:-}"
 REMOTE_HOST="${REMOTE_HOST:-}"
 REMOTE_TOKEN="${REMOTE_TOKEN:-}"
 REMOTE_NAME="${REMOTE_NAME:-Primary remote}"
 REMOTE_ID="${REMOTE_ID:-remote-default}"
 LAUNCH_AFTER_SEED=1
+RELAUNCH_DELAY_SECONDS="${RELAUNCH_DELAY_SECONDS:-2}"
 
 usage() {
   cat <<'EOF'
@@ -21,6 +23,7 @@ starts in remote mode with a ready connection target.
 
 Options:
   --simulator <name>     Simulator name (default: "iPhone Air")
+  --simulator-id <id>    Simulator UDID (default: pinned iPhone Air device)
   --bundle-id <id>       Bundle id to target (default: resolved from Tauri iOS config)
   --host <host:port>     Remote backend host to seed
   --token <token>        Remote backend token to seed
@@ -35,6 +38,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --simulator)
       SIMULATOR_NAME="${2:-}"
+      shift 2
+      ;;
+    --simulator-id)
+      SIMULATOR_DEVICE_ID="${2:-}"
       shift 2
       ;;
     --bundle-id)
@@ -115,10 +122,10 @@ if [[ -z "$BUNDLE_ID" ]]; then
 fi
 
 open -a Simulator || true
-xcrun simctl boot "$SIMULATOR_NAME" >/dev/null 2>&1 || true
-xcrun simctl bootstatus booted -b >/dev/null 2>&1 || true
+xcrun simctl boot "$SIMULATOR_DEVICE_ID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$SIMULATOR_DEVICE_ID" -b >/dev/null 2>&1 || true
 
-DATA_CONTAINER="$(xcrun simctl get_app_container booted "$BUNDLE_ID" data)"
+DATA_CONTAINER="$(xcrun simctl get_app_container "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID" data)"
 if [[ -z "$DATA_CONTAINER" || ! -d "$DATA_CONTAINER" ]]; then
   echo "Unable to resolve simulator data container for ${BUNDLE_ID}. Is the app installed?" >&2
   exit 1
@@ -186,7 +193,10 @@ echo "  settings:  ${SETTINGS_PATH}"
 echo "  remote:    ${REMOTE_NAME} (${REMOTE_HOST})"
 
 if [[ "$LAUNCH_AFTER_SEED" -eq 1 ]]; then
-  xcrun simctl terminate booted "$BUNDLE_ID" >/dev/null 2>&1 || true
-  xcrun simctl launch booted "$BUNDLE_ID"
+  xcrun simctl terminate "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl launch "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID"
+  sleep "$RELAUNCH_DELAY_SECONDS"
+  xcrun simctl terminate "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl launch "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID"
   echo "  launched:  ${BUNDLE_ID}"
 fi

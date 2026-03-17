@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 SIMULATOR_NAME="${SIMULATOR_NAME:-iPhone Air}"
+SIMULATOR_DEVICE_ID="${SIMULATOR_DEVICE_ID:-B3F01E53-3DCC-4326-8A29-BFA2B5986505}"
 TARGET="${TARGET:-aarch64-sim}"
 BUNDLE_ID="${BUNDLE_ID:-}"
 REMOTE_HOST="${REMOTE_HOST:-}"
@@ -12,6 +13,7 @@ REMOTE_TOKEN="${REMOTE_TOKEN:-}"
 REMOTE_NAME="${REMOTE_NAME:-Primary remote}"
 SKIP_BUILD=0
 CLEAN_BUILD=1
+SEEDED_AND_LAUNCHED=0
 IOS_APP_ICONSET_DIR="src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"
 TAURI_IOS_LOCAL_CONFIG="src-tauri/tauri.ios.local.conf.json"
 TAURI_CONFIG_ARGS=()
@@ -24,6 +26,7 @@ Builds the iOS simulator app, installs it on a booted simulator, and launches it
 
 Options:
   --simulator <name>   Simulator name (default: "iPhone Air")
+  --simulator-id <id>  Simulator UDID (default: pinned iPhone Air device)
   --target <target>    Tauri iOS target (default: "aarch64-sim")
   --bundle-id <id>     Bundle id to launch (default: resolved from Tauri iOS config)
   --remote-host <hp>   Seed simulator app with this remote host before launch
@@ -39,6 +42,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --simulator)
       SIMULATOR_NAME="${2:-}"
+      shift 2
+      ;;
+    --simulator-id)
+      SIMULATOR_DEVICE_ID="${2:-}"
       shift 2
       ;;
     --target)
@@ -192,9 +199,9 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 open -a Simulator || true
-xcrun simctl boot "$SIMULATOR_NAME" >/dev/null 2>&1 || true
-xcrun simctl bootstatus booted -b >/dev/null 2>&1 || true
-xcrun simctl install booted "$APP_PATH"
+xcrun simctl boot "$SIMULATOR_DEVICE_ID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$SIMULATOR_DEVICE_ID" -b >/dev/null 2>&1 || true
+xcrun simctl install "$SIMULATOR_DEVICE_ID" "$APP_PATH"
 if [[ -n "$REMOTE_HOST" || -n "$REMOTE_TOKEN" ]]; then
   if [[ -z "$REMOTE_HOST" || -z "$REMOTE_TOKEN" ]]; then
     echo "Both --remote-host and --remote-token are required when seeding simulator settings." >&2
@@ -202,13 +209,17 @@ if [[ -n "$REMOTE_HOST" || -n "$REMOTE_TOKEN" ]]; then
   fi
   "$ROOT_DIR/scripts/seed_ios_simulator_remote.sh" \
     --simulator "$SIMULATOR_NAME" \
+    --simulator-id "$SIMULATOR_DEVICE_ID" \
     --bundle-id "$BUNDLE_ID" \
     --host "$REMOTE_HOST" \
     --token "$REMOTE_TOKEN" \
     --name "$REMOTE_NAME"
+  SEEDED_AND_LAUNCHED=1
 fi
-xcrun simctl terminate booted "$BUNDLE_ID" >/dev/null 2>&1 || true
-xcrun simctl launch booted "$BUNDLE_ID"
+if [[ "$SEEDED_AND_LAUNCHED" -eq 0 ]]; then
+  xcrun simctl terminate "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl launch "$SIMULATOR_DEVICE_ID" "$BUNDLE_ID"
+fi
 
 echo
-echo "Launched ${BUNDLE_ID} on simulator '${SIMULATOR_NAME}'."
+echo "Launched ${BUNDLE_ID} on simulator '${SIMULATOR_NAME}' (${SIMULATOR_DEVICE_ID})."
