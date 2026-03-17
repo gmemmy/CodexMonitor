@@ -80,6 +80,8 @@ export type RemoteThreadConnectionState =
   | "stale"
   | "disconnected";
 
+export type RemotePresenceState = "online" | "running" | "stale" | "offline";
+
 export type ThreadRefreshResult = {
   ok: boolean;
   threadId: string | null;
