@@ -51,5 +51,4 @@ else
   "$MISE_BIN" exec -C "$ROOT_DIR" -- npm ci
 fi
 
-echo "Worker capability report:"
-"$MISE_BIN" exec -C "$ROOT_DIR" -- npm run validate:preflight
+echo "Warm bootstrap complete."

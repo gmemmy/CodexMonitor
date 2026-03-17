@@ -21,15 +21,13 @@ hooks:
   after_create: |
     git clone --origin origin https://github.com/gmemmy/CodexMonitor.git .
     git remote add upstream https://github.com/Dimillian/CodexMonitor.git || true
-    git fetch --all --prune
-    git checkout daily || git checkout -b daily origin/daily
-    git pull --ff-only origin daily
     ./scripts/bootstrap-worker.sh
+    ./scripts/prepare-issue-workspace.sh daily
 agent:
   max_concurrent_agents: 1
   max_turns: 6
 codex:
-  command: codex --config shell_environment_policy.inherit=all app-server
+  command: ./scripts/run-codex-worker.sh
   approval_policy: never
   thread_sandbox: danger-full-access
   turn_sandbox_policy:
