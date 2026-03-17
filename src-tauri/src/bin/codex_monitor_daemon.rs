@@ -80,15 +80,18 @@ use backend::events::{AppServerEvent, EventSink, TerminalExit, TerminalOutput};
 use shared::codex_core::CodexLoginCancelState;
 use shared::process_core::kill_child_process_tree;
 use shared::prompts_core::{self, CustomPromptEntry};
+use shared::terminal_session_core::ActiveTerminalSessionRecord;
 use shared::{
     active_selection_core, agents_config_core, codex_aux_core, codex_core, files_core, git_core,
-    git_ui_core, local_usage_core, settings_core, workspaces_core, worktree_core,
+    git_ui_core, local_usage_core, settings_core, terminal_session_core, workspaces_core,
+    worktree_core,
 };
 use storage::{read_settings, read_workspaces};
 use types::{
-    ActiveSelectionState, AppSettings, GitCommitDiff, GitFileDiff, GitHubIssuesResponse,
-    GitHubPullRequestComment, GitHubPullRequestDiff, GitHubPullRequestsResponse, GitLogResponse,
-    LocalUsageSnapshot, WorkspaceEntry, WorkspaceInfo, WorkspaceSettings, WorktreeSetupStatus,
+    ActiveSelectionState, ActiveTerminalSessionInfo, AppSettings, GitCommitDiff, GitFileDiff,
+    GitHubIssuesResponse, GitHubPullRequestComment, GitHubPullRequestDiff,
+    GitHubPullRequestsResponse, GitLogResponse, LocalUsageSnapshot, WorkspaceEntry, WorkspaceInfo,
+    WorkspaceSettings, WorktreeSetupStatus,
 };
 use workspace_settings::apply_workspace_settings_update;
 
@@ -152,6 +155,7 @@ struct DaemonState {
     data_dir: PathBuf,
     workspaces: Mutex<HashMap<String, WorkspaceEntry>>,
     sessions: Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    active_terminal_sessions: Mutex<HashMap<String, ActiveTerminalSessionRecord>>,
     storage_path: PathBuf,
     settings_path: PathBuf,
     app_settings: Mutex<AppSettings>,
@@ -179,6 +183,7 @@ impl DaemonState {
             data_dir: config.data_dir.clone(),
             workspaces: Mutex::new(workspaces),
             sessions: Mutex::new(HashMap::new()),
+            active_terminal_sessions: Mutex::new(HashMap::new()),
             storage_path,
             settings_path,
             app_settings: Mutex::new(app_settings),
@@ -241,6 +246,19 @@ impl DaemonState {
     async fn list_workspaces(&self) -> Vec<WorkspaceInfo> {
         self.sync_workspaces_from_storage().await;
         workspaces_core::list_workspaces_core(&self.workspaces, &self.sessions).await
+    }
+
+    async fn list_active_terminal_sessions(
+        &self,
+        workspace_id: String,
+    ) -> Result<Vec<ActiveTerminalSessionInfo>, String> {
+        Ok(
+            terminal_session_core::list_active_terminal_sessions_core(
+                &self.active_terminal_sessions,
+                &workspace_id,
+            )
+            .await,
+        )
     }
 
     async fn is_workspace_path_dir(&self, path: String) -> bool {
@@ -1657,6 +1675,7 @@ mod tests {
             data_dir: data_dir.to_path_buf(),
             workspaces: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
+            active_terminal_sessions: Mutex::new(HashMap::new()),
             storage_path: data_dir.join("workspaces.json"),
             settings_path: data_dir.join("settings.json"),
             app_settings: Mutex::new(AppSettings::default()),
@@ -1789,6 +1808,52 @@ mod tests {
                         .is_some_and(|name| name == "review")
                 }),
                 "expected prompts_list to include workspace prompt"
+            );
+            let _ = std::fs::remove_dir_all(&tmp);
+        });
+    }
+
+    #[test]
+    fn rpc_list_active_terminal_sessions_returns_registered_sessions() {
+        run_async_test(async {
+            let tmp = make_temp_dir("rpc-active-terminal-sessions");
+            let state = test_state(&tmp);
+            terminal_session_core::register_active_terminal_session_core(
+                &state.active_terminal_sessions,
+                ActiveTerminalSessionRecord::new(
+                    "ws-terminal",
+                    "terminal-1",
+                    10,
+                    Some("Launch".to_string()),
+                    None,
+                ),
+            )
+            .await;
+            terminal_session_core::register_active_terminal_session_core(
+                &state.active_terminal_sessions,
+                ActiveTerminalSessionRecord::new("ws-other", "terminal-2", 5, None, None),
+            )
+            .await;
+
+            let result = rpc::handle_rpc_request(
+                &state,
+                terminal_session_core::METHOD_LIST_ACTIVE_TERMINAL_SESSIONS,
+                json!({ "workspaceId": "ws-terminal" }),
+                "daemon-test".to_string(),
+            )
+            .await
+            .expect("list_active_terminal_sessions should succeed");
+
+            let sessions = serde_json::from_value::<Vec<ActiveTerminalSessionInfo>>(result)
+                .expect("typed active terminal sessions");
+            assert_eq!(
+                sessions,
+                vec![ActiveTerminalSessionInfo {
+                    terminal_id: "terminal-1".to_string(),
+                    created_at: 10,
+                    title: Some("Launch".to_string()),
+                    source: None,
+                }]
             );
             let _ = std::fs::remove_dir_all(&tmp);
         });

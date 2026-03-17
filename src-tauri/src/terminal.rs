@@ -9,7 +9,10 @@ use tokio::sync::Mutex;
 
 use crate::backend::events::{EventSink, TerminalExit, TerminalOutput};
 use crate::event_sink::TauriEventSink;
+use crate::remote_backend;
+use crate::shared::{terminal_session_core, workspace_rpc};
 use crate::state::AppState;
+use crate::types::ActiveTerminalSessionInfo;
 
 pub(crate) struct TerminalSession {
     pub(crate) id: String,
@@ -24,7 +27,7 @@ pub(crate) struct TerminalSessionInfo {
 }
 
 fn terminal_key(workspace_id: &str, terminal_id: &str) -> String {
-    format!("{workspace_id}:{terminal_id}")
+    terminal_session_core::terminal_session_key(workspace_id, terminal_id)
 }
 
 fn is_terminal_closed_error(message: &str) -> bool {
@@ -179,6 +182,13 @@ fn spawn_terminal_reader(
                 .is_some_and(|current| Arc::ptr_eq(current, &cleanup_session));
             if should_remove {
                 sessions.remove(&key);
+                drop(sessions);
+                terminal_session_core::remove_active_terminal_session_core(
+                    &state.active_terminal_sessions,
+                    &cleanup_workspace_id,
+                    &cleanup_terminal_id,
+                )
+                .await;
             }
         });
     });
@@ -273,6 +283,17 @@ pub(crate) async fn terminal_open(
         }
         sessions.insert(key, Arc::clone(&session));
     }
+    terminal_session_core::register_active_terminal_session_core(
+        &state.active_terminal_sessions,
+        terminal_session_core::ActiveTerminalSessionRecord::new(
+            workspace_id.clone(),
+            terminal_id.clone(),
+            terminal_session_core::current_time_millis(),
+            None,
+            None,
+        ),
+    )
+    .await;
     let event_sink = TauriEventSink::new(app.clone());
     spawn_terminal_reader(
         event_sink,
@@ -312,6 +333,13 @@ pub(crate) async fn terminal_write(
         if is_terminal_closed_error(&err) {
             let mut sessions = state.terminal_sessions.lock().await;
             sessions.remove(&key);
+            drop(sessions);
+            terminal_session_core::remove_active_terminal_session_core(
+                &state.active_terminal_sessions,
+                &workspace_id,
+                &terminal_id,
+            )
+            .await;
         }
         return Err(err);
     }
@@ -346,6 +374,13 @@ pub(crate) async fn terminal_resize(
         if is_terminal_closed_error(&err) {
             let mut sessions = state.terminal_sessions.lock().await;
             sessions.remove(&key);
+            drop(sessions);
+            terminal_session_core::remove_active_terminal_session_core(
+                &state.active_terminal_sessions,
+                &workspace_id,
+                &terminal_id,
+            )
+            .await;
         }
         return Err(err);
     }
@@ -364,12 +399,47 @@ pub(crate) async fn terminal_close(
         .remove(&key)
         .ok_or_else(|| "Terminal session not found".to_string())?;
     drop(sessions);
+    terminal_session_core::remove_active_terminal_session_core(
+        &state.active_terminal_sessions,
+        &workspace_id,
+        &terminal_id,
+    )
+    .await;
     let _ = tokio::task::spawn_blocking(move || {
         let mut child = session.child.blocking_lock();
         let _ = child.kill();
     })
     .await;
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn list_active_terminal_sessions(
+    workspace_id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Vec<ActiveTerminalSessionInfo>, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let request = workspace_rpc::WorkspaceIdRequest {
+            workspace_id: workspace_id.clone(),
+        };
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            terminal_session_core::METHOD_LIST_ACTIVE_TERMINAL_SESSIONS,
+            workspace_rpc::to_params(&request)?,
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    Ok(
+        terminal_session_core::list_active_terminal_sessions_core(
+            &state.active_terminal_sessions,
+            &workspace_id,
+        )
+        .await,
+    )
 }
 
 #[cfg(test)]

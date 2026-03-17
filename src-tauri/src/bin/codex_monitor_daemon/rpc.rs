@@ -10,6 +10,8 @@ mod dispatcher;
 mod git;
 #[path = "rpc/prompts.rs"]
 mod prompts;
+#[path = "rpc/terminal.rs"]
+mod terminal;
 #[path = "rpc/workspace.rs"]
 mod workspace;
 

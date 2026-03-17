@@ -1,7 +1,10 @@
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
+use crate::remote_backend;
+use crate::shared::{terminal_session_core, workspace_rpc};
 use crate::state::AppState;
+use crate::types::ActiveTerminalSessionInfo;
 
 const UNSUPPORTED_MESSAGE: &str = "Terminal is not available on mobile builds.";
 
@@ -57,4 +60,31 @@ pub(crate) async fn terminal_close(
     _state: State<'_, AppState>,
 ) -> Result<(), String> {
     Err(UNSUPPORTED_MESSAGE.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn list_active_terminal_sessions(
+    workspace_id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Vec<ActiveTerminalSessionInfo>, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let request = workspace_rpc::WorkspaceIdRequest { workspace_id };
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            terminal_session_core::METHOD_LIST_ACTIVE_TERMINAL_SESSIONS,
+            workspace_rpc::to_params(&request)?,
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|err| err.to_string());
+    }
+
+    Ok(
+        terminal_session_core::list_active_terminal_sessions_core(
+            &state.active_terminal_sessions,
+            &workspace_id,
+        )
+        .await,
+    )
 }
