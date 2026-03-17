@@ -15,6 +15,7 @@ use tokio::time::timeout;
 use crate::backend::events::{AppServerEvent, EventSink};
 use crate::codex::args::parse_codex_args;
 use crate::shared::process_core::{kill_child_process_tree, tokio_command};
+use crate::shared::rate_limits_core;
 use crate::types::WorkspaceEntry;
 
 #[cfg(target_os = "windows")]
@@ -410,6 +411,35 @@ fn should_broadcast_global_workspace_notification(
         && request_workspace.is_none()
 }
 
+fn extract_rate_limits_result(value: &Value) -> Option<&Value> {
+    let container = value.get("result").unwrap_or(value);
+    container
+        .get("rateLimits")
+        .or_else(|| container.get("rate_limits"))
+}
+
+fn set_rate_limits_result(value: &mut Value, snapshot: Value) {
+    if let Some(result) = value.get_mut("result").and_then(Value::as_object_mut) {
+        result.insert("rateLimits".to_string(), snapshot);
+        return;
+    }
+    if let Some(record) = value.as_object_mut() {
+        record.insert("rateLimits".to_string(), snapshot);
+    }
+}
+
+fn extract_rate_limits_params(value: &Value) -> Option<&Value> {
+    value
+        .get("params")
+        .and_then(|params| params.get("rateLimits").or_else(|| params.get("rate_limits")))
+}
+
+fn set_rate_limits_params(value: &mut Value, snapshot: Value) {
+    if let Some(params) = value.get_mut("params").and_then(Value::as_object_mut) {
+        params.insert("rateLimits".to_string(), snapshot);
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct RequestContext {
     workspace_id: String,
@@ -445,6 +475,7 @@ pub(crate) struct WorkspaceSession {
     pub(crate) owner_workspace_id: String,
     pub(crate) workspace_ids: Mutex<HashSet<String>>,
     pub(crate) workspace_roots: Mutex<HashMap<String, String>>,
+    pub(crate) latest_rate_limits: Mutex<Option<Value>>,
 }
 
 impl WorkspaceSession {
@@ -791,6 +822,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             entry.id.clone(),
             normalize_root_path(&entry.path),
         )])),
+        latest_rate_limits: Mutex::new(None),
     });
 
     let session_clone = Arc::clone(&session);
@@ -802,7 +834,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             if line.trim().is_empty() {
                 continue;
             }
-            let value: Value = match serde_json::from_str(&line) {
+            let mut value: Value = match serde_json::from_str(&line) {
                 Ok(value) => value,
                 Err(err) => {
                     let payload = AppServerEvent {
@@ -820,7 +852,10 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             let maybe_id = value.get("id").and_then(|id| id.as_u64());
             let has_method = value.get("method").is_some();
             let has_result_or_error = value.get("result").is_some() || value.get("error").is_some();
-            let method_name = value.get("method").and_then(|method| method.as_str());
+            let method_name = value
+                .get("method")
+                .and_then(|method| method.as_str())
+                .map(str::to_string);
 
             // Check if this event is for a background thread
             let thread_id = extract_thread_id(&value);
@@ -831,6 +866,37 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     if let Some(context) = session_clone.request_context.lock().await.remove(&id) {
                         request_workspace = Some(context.workspace_id);
                         request_method = Some(context.method);
+                    }
+                }
+            }
+
+            if matches!(
+                method_name.as_deref(),
+                Some("account/updated") | Some("account/login/completed")
+            ) {
+                *session_clone.latest_rate_limits.lock().await = None;
+            }
+
+            if matches!(request_method.as_deref(), Some("account/rateLimits/read")) {
+                if let Some(raw_rate_limits) = extract_rate_limits_result(&value) {
+                    let previous = session_clone.latest_rate_limits.lock().await.clone();
+                    if let Some(normalized) = rate_limits_core::normalize_rate_limits_snapshot(
+                        previous.as_ref(),
+                        raw_rate_limits,
+                    ) {
+                        *session_clone.latest_rate_limits.lock().await = Some(normalized.clone());
+                        set_rate_limits_result(&mut value, normalized);
+                    }
+                }
+            } else if method_name.as_deref() == Some("account/rateLimits/updated") {
+                if let Some(raw_rate_limits) = extract_rate_limits_params(&value) {
+                    let previous = session_clone.latest_rate_limits.lock().await.clone();
+                    if let Some(normalized) = rate_limits_core::normalize_rate_limits_snapshot(
+                        previous.as_ref(),
+                        raw_rate_limits,
+                    ) {
+                        *session_clone.latest_rate_limits.lock().await = Some(normalized.clone());
+                        set_rate_limits_params(&mut value, normalized);
                     }
                 }
             }
@@ -896,7 +962,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                 .unwrap_or_else(|| fallback_workspace_id.clone());
 
             if let Some(ref tid) = thread_id {
-                if method_name == Some("codex/backgroundThread") {
+                if method_name.as_deref() == Some("codex/backgroundThread") {
                     let action = value
                         .get("params")
                         .and_then(|params| params.get("action"))
@@ -905,7 +971,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     if action.eq_ignore_ascii_case("hide") {
                         session_clone.hidden_thread_ids.lock().await.insert(tid.clone());
                     }
-                } else if method_name == Some("thread/started")
+                } else if method_name.as_deref() == Some("thread/started")
                     && thread_started_is_memory_consolidation(&value)
                 {
                     session_clone.hidden_thread_ids.lock().await.insert(tid.clone());
@@ -928,13 +994,16 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     hidden.contains(tid)
                 };
                 if should_suppress_hidden_thread
-                    && should_suppress_hidden_thread_event(method_name, has_result_or_error)
+                    && should_suppress_hidden_thread_event(method_name.as_deref(), has_result_or_error)
                 {
                     continue;
                 }
             }
 
-            if matches!(method_name, Some("item/started") | Some("item/completed")) {
+            if matches!(
+                method_name.as_deref(),
+                Some("item/started") | Some("item/completed")
+            ) {
                 let related_thread_ids = extract_related_thread_ids(&value);
                 if !related_thread_ids.is_empty() {
                     let mut thread_workspace = session_clone.thread_workspace.lock().await;
@@ -946,7 +1015,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                 }
             }
 
-            if method_name == Some("thread/archived") {
+            if method_name.as_deref() == Some("thread/archived") {
                 if let Some(ref tid) = thread_id {
                     session_clone.thread_workspace.lock().await.remove(tid);
                     session_clone.hidden_thread_ids.lock().await.remove(tid);
@@ -971,7 +1040,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     // Don't emit to frontend if this is a background thread event
                     if !sent_to_background {
                         if should_broadcast_global_workspace_notification(
-                            method_name,
+                            method_name.as_deref(),
                             thread_id.as_ref(),
                             request_workspace.as_deref(),
                         ) {
@@ -1015,7 +1084,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                 // Don't emit to frontend if this is a background thread event
                 if !sent_to_background {
                     if should_broadcast_global_workspace_notification(
-                        method_name,
+                        method_name.as_deref(),
                         thread_id.as_ref(),
                         request_workspace.as_deref(),
                     ) {

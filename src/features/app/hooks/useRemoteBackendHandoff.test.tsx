@@ -151,6 +151,8 @@ describe("useRemoteBackendHandoff", () => {
     const replaceWorkspaceState = vi.fn();
     const resetThreadState = vi.fn();
     const listThreadsForWorkspace = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
       useRemoteBackendHandoff({
@@ -161,6 +163,8 @@ describe("useRemoteBackendHandoff", () => {
         replaceWorkspaceState,
         resetThreadState,
         listThreadsForWorkspace,
+        refreshAccountInfo,
+        refreshAccountRateLimits,
       }),
     );
 
@@ -190,6 +194,8 @@ describe("useRemoteBackendHandoff", () => {
       ...nextWorkspace,
       connected: true,
     });
+    expect(refreshAccountInfo).toHaveBeenCalledWith("ws-office");
+    expect(refreshAccountRateLimits).toHaveBeenCalledWith("ws-office");
     expect(setAppSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         activeRemoteBackendId: "remote-office",
@@ -215,6 +221,8 @@ describe("useRemoteBackendHandoff", () => {
     const replaceWorkspaceState = vi.fn();
     const resetThreadState = vi.fn();
     const listThreadsForWorkspace = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
       useRemoteBackendHandoff({
@@ -225,6 +233,8 @@ describe("useRemoteBackendHandoff", () => {
         replaceWorkspaceState,
         resetThreadState,
         listThreadsForWorkspace,
+        refreshAccountInfo,
+        refreshAccountRateLimits,
       }),
     );
 
@@ -250,6 +260,8 @@ describe("useRemoteBackendHandoff", () => {
     expect(resetThreadState).not.toHaveBeenCalled();
     expect(replaceWorkspaceState).not.toHaveBeenCalled();
     expect(listThreadsForWorkspace).not.toHaveBeenCalled();
+    expect(refreshAccountInfo).not.toHaveBeenCalled();
+    expect(refreshAccountRateLimits).not.toHaveBeenCalled();
   });
 
   it("falls back to another connected workspace when the preferred workspace cannot reconnect", async () => {
@@ -280,6 +292,8 @@ describe("useRemoteBackendHandoff", () => {
     const replaceWorkspaceState = vi.fn();
     const resetThreadState = vi.fn();
     const listThreadsForWorkspace = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountInfo = vi.fn().mockResolvedValue(undefined);
+    const refreshAccountRateLimits = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
       useRemoteBackendHandoff({
@@ -290,6 +304,8 @@ describe("useRemoteBackendHandoff", () => {
         replaceWorkspaceState,
         resetThreadState,
         listThreadsForWorkspace,
+        refreshAccountInfo,
+        refreshAccountRateLimits,
       }),
     );
 
@@ -302,5 +318,7 @@ describe("useRemoteBackendHandoff", () => {
       { activeWorkspaceId: "ws-office-2" },
     );
     expect(listThreadsForWorkspace).toHaveBeenCalledWith(fallbackWorkspace);
+    expect(refreshAccountInfo).toHaveBeenCalledWith("ws-office-2");
+    expect(refreshAccountRateLimits).toHaveBeenCalledWith("ws-office-2");
   });
 });

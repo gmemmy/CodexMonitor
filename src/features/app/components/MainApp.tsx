@@ -601,6 +601,8 @@ export default function MainApp() {
     replaceWorkspaceState,
     resetThreadState,
     listThreadsForWorkspace,
+    refreshAccountInfo,
+    refreshAccountRateLimits,
   });
   const {
     connectionState: remoteThreadConnectionState,
@@ -641,6 +643,16 @@ export default function MainApp() {
     [clearRemoteThreadSyncFailure, markThreadFreshAtCurrentBoundary],
   );
 
+  const refreshWorkspaceUsage = useCallback(
+    async (workspaceId: string) => {
+      await Promise.allSettled([
+        Promise.resolve(refreshAccountInfo(workspaceId)),
+        Promise.resolve(refreshAccountRateLimits(workspaceId)),
+      ]);
+    },
+    [refreshAccountInfo, refreshAccountRateLimits],
+  );
+
   const handleReconnectRemote = useCallback(() => {
     if (
       remoteReconnectLoading ||
@@ -668,6 +680,9 @@ export default function MainApp() {
           reason: "manual",
           workspaceConnectedHint: refreshedWorkspace.connected,
         });
+        if (refreshedWorkspace.connected) {
+          await refreshWorkspaceUsage(refreshedWorkspace.id);
+        }
         return;
       }
 
@@ -680,6 +695,7 @@ export default function MainApp() {
 
       if (refreshedWorkspace.connected) {
         await listThreadsForWorkspaces([refreshedWorkspace], { preserveState: true });
+        await refreshWorkspaceUsage(refreshedWorkspace.id);
       }
     })()
       .catch(() => {
@@ -694,6 +710,7 @@ export default function MainApp() {
     appSettings.backendMode,
     connectWorkspace,
     listThreadsForWorkspaces,
+    refreshWorkspaceUsage,
     reconnectLive,
     refreshWorkspaces,
     remoteReconnectLoading,
@@ -734,6 +751,7 @@ export default function MainApp() {
         runResume: false,
         workspaceConnectedHint: workspace.connected,
       });
+      await refreshWorkspaceUsage(workspace.id);
     })()
       .catch(() => {
         // Errors are surfaced through debug entries/toasts in existing thread actions.
@@ -750,6 +768,7 @@ export default function MainApp() {
     refreshThread,
     handleRemoteThreadRefreshFailure,
     handleRemoteThreadRefreshSuccess,
+    refreshWorkspaceUsage,
     reconnectLive,
     startThreadForWorkspace,
   ]);
@@ -1300,7 +1319,7 @@ export default function MainApp() {
     getWorkspaceGroupName,
   });
 
-  const activeRateLimits = activeWorkspaceId
+  const activeRateLimits = activeWorkspaceId && activeWorkspace?.connected
     ? rateLimitsByWorkspace[activeWorkspaceId] ?? null
     : null;
   const activeTokenUsage = activeThreadId

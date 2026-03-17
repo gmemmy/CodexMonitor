@@ -20,6 +20,8 @@ type UseRemoteBackendHandoffOptions = {
     workspace: WorkspaceInfo,
     options?: { preserveState?: boolean },
   ) => Promise<void>;
+  refreshAccountInfo?: (workspaceId: string) => Promise<void> | void;
+  refreshAccountRateLimits?: (workspaceId: string) => Promise<void> | void;
 };
 
 type RemoteWorkspaceSnapshot = Pick<WorkspaceInfo, "id" | "name" | "path"> | null;
@@ -72,6 +74,8 @@ export function useRemoteBackendHandoff({
   replaceWorkspaceState,
   resetThreadState,
   listThreadsForWorkspace,
+  refreshAccountInfo,
+  refreshAccountRateLimits,
 }: UseRemoteBackendHandoffOptions) {
   const [handoffRemoteId, setHandoffRemoteId] = useState<string | null>(null);
 
@@ -153,6 +157,10 @@ export function useRemoteBackendHandoff({
 
         if (targetWorkspace?.connected) {
           await listThreadsForWorkspace(targetWorkspace);
+          await Promise.allSettled([
+            Promise.resolve(refreshAccountInfo?.(targetWorkspace.id)),
+            Promise.resolve(refreshAccountRateLimits?.(targetWorkspace.id)),
+          ]);
         }
 
         return formatWorkspaceReachabilityMessage(selectedRemote.name, nextWorkspaces.length);
@@ -180,6 +188,8 @@ export function useRemoteBackendHandoff({
       listThreadsForWorkspace,
       replaceWorkspaceState,
       resetThreadState,
+      refreshAccountInfo,
+      refreshAccountRateLimits,
       setAppSettings,
     ],
   );
