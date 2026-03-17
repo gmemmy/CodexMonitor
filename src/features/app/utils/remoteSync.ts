@@ -34,6 +34,21 @@ export function buildRemoteSyncFailure(
   };
 }
 
+export function selectLatestRemoteSyncFailure(
+  ...failures: Array<RemoteSyncFailure | null | undefined>
+): RemoteSyncFailure | null {
+  let latestFailure: RemoteSyncFailure | null = null;
+  for (const failure of failures) {
+    if (!failure) {
+      continue;
+    }
+    if (!latestFailure || failure.at > latestFailure.at) {
+      latestFailure = failure;
+    }
+  }
+  return latestFailure;
+}
+
 function isWorkspaceFailurePhase(
   phase: RemoteSyncFailurePhase | null | undefined,
 ): boolean {

@@ -89,6 +89,7 @@ import {
   ensureConnectedWorkspace,
   normalizeThreadRefreshResult,
   resolveRemoteSyncBannerContent,
+  selectLatestRemoteSyncFailure,
 } from "@app/utils/remoteSync";
 
 const SettingsView = lazy(() =>
@@ -1446,7 +1447,10 @@ export default function MainApp() {
       : remoteWorkspaceSyncState === "stale" || remoteThreadConnectionState === "stale"
         ? "stale"
         : remoteThreadConnectionState;
-  const remoteSyncFailure = remoteThreadLastFailure ?? lastRemoteSyncFailure;
+  const remoteSyncFailure = selectLatestRemoteSyncFailure(
+    remoteThreadLastFailure,
+    lastRemoteSyncFailure,
+  );
   const remoteSyncBannerNode = useMemo(() => {
     if (
       appSettings.backendMode !== "remote" ||

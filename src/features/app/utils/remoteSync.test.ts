@@ -4,6 +4,7 @@ import {
   applyWorkspaceConnectionOverride,
   ensureConnectedWorkspace,
   resolveRemoteSyncBannerContent,
+  selectLatestRemoteSyncFailure,
 } from "./remoteSync";
 
 describe("resolveRemoteSyncBannerContent", () => {
@@ -58,6 +59,60 @@ describe("resolveRemoteSyncBannerContent", () => {
       state: "disconnected",
       title: "Remote backend disconnected",
       message: "Reconnect to restore live data from the remote backend.",
+    });
+  });
+
+  it("prefers the latest sync failure when workspace and thread failures both exist", () => {
+    expect(
+      selectLatestRemoteSyncFailure(
+        {
+          phase: "thread_live",
+          message: "Lost live connection to the remote thread.",
+          at: 10,
+          workspaceId: "ws-1",
+          threadId: "thread-1",
+        },
+        {
+          phase: "workspace_refresh",
+          message: "Unable to refresh remote workspaces.",
+          at: 20,
+          workspaceId: "ws-1",
+          threadId: null,
+        },
+      ),
+    ).toEqual({
+      phase: "workspace_refresh",
+      message: "Unable to refresh remote workspaces.",
+      at: 20,
+      workspaceId: "ws-1",
+      threadId: null,
+    });
+  });
+
+  it("keeps the thread failure when it is newer than the workspace failure", () => {
+    expect(
+      selectLatestRemoteSyncFailure(
+        {
+          phase: "thread_live",
+          message: "Lost live connection to the remote thread.",
+          at: 20,
+          workspaceId: "ws-1",
+          threadId: "thread-1",
+        },
+        {
+          phase: "workspace_refresh",
+          message: "Unable to refresh remote workspaces.",
+          at: 10,
+          workspaceId: "ws-1",
+          threadId: null,
+        },
+      ),
+    ).toEqual({
+      phase: "thread_live",
+      message: "Lost live connection to the remote thread.",
+      at: 20,
+      workspaceId: "ws-1",
+      threadId: "thread-1",
     });
   });
 
