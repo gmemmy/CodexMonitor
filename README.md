@@ -68,6 +68,12 @@ Install dependencies:
 npm install
 ```
 
+Check local validation capabilities:
+
+```bash
+npm run validate:preflight
+```
+
 Run in dev mode:
 
 ```bash
