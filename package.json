@@ -13,6 +13,8 @@
     "build:appimage": "NO_STRIP=1 tauri build --bundles appimage",
     "doctor": "sh scripts/doctor.sh",
     "doctor:strict": "sh scripts/doctor.sh --strict",
+    "validate:preflight": "sh scripts/validate-preflight.sh",
+    "validate:preflight:strict": "sh scripts/validate-preflight.sh --strict",
     "doctor:win": "node scripts/doctor.mjs --strict",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:ds": "eslint . --ext .ts,.tsx",

@@ -28,7 +28,7 @@ agent:
   max_concurrent_agents: 1
   max_turns: 6
 codex:
-  command: codex --config shell_environment_policy.inherit=all app-server
+  command: /opt/homebrew/bin/codex --config shell_environment_policy.inherit=all app-server
   approval_policy: never
   thread_sandbox: danger-full-access
   turn_sandbox_policy:
@@ -70,10 +70,11 @@ Status flow:
 Execution rules:
 1. Start by checking the current branch, git status, and HEAD commit.
 2. Sync with `origin/daily` before implementation work begins.
-3. Reproduce the issue or confirm the requested change target before editing code.
-4. Prefer the smallest sufficient validation for the touched area.
-5. Update the Linear issue with concise progress notes when you reach meaningful milestones.
-6. Stop only for a real blocker such as missing auth, missing secrets, or unavailable required tools.
+3. Run `npm run validate:preflight` before editing code and record any blocked validation capabilities in the issue.
+4. Reproduce the issue or confirm the requested change target before editing code.
+5. Prefer the smallest sufficient validation for the touched area.
+6. Update the Linear issue with concise progress notes when you reach meaningful milestones.
+7. Stop only for a real blocker such as missing auth, missing secrets, or unavailable required tools.
 
 Validation rules for this repository:
 - Frontend-only changes:
@@ -86,6 +87,11 @@ Validation rules for this repository:
   - Run `cargo check` from `src-tauri`.
   - Validate the desktop app path locally.
   - Validate the remote/mobile flow end-to-end when the issue changes remote behavior.
+
+Preflight policy:
+- Run `npm run validate:preflight` before implementation work.
+- If required capabilities are blocked, report the blocked checks explicitly in the Linear issue and PR summary.
+- Do not claim full validation when the preflight reports a blocked required capability for the issue type.
 
 CodexMonitor-specific constraints:
 - Follow `AGENTS.md` and `docs/codebase-map.md`.
