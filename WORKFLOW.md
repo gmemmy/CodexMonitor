@@ -28,7 +28,7 @@ hooks:
     git pull --ff-only origin daily
 agent:
   max_concurrent_agents: 1
-  max_turns: 12
+  max_turns: 6
 codex:
   command: codex --config shell_environment_policy.inherit=all app-server
   approval_policy: never
@@ -104,5 +104,11 @@ When implementation is complete:
 3. Push the branch.
 4. Open or update a PR targeting `daily`.
 5. Move the issue to `In Review`.
+6. Stop once acceptance criteria are met, validation passes, and the PR is ready for review.
+
+Do not continue iterating after the issue is PR-ready unless:
+- validation is failing,
+- the PR is blocked by unresolved implementation problems, or
+- explicit review feedback requires more changes.
 
 Do not ask the human for routine next steps. Only stop for actual blockers.
