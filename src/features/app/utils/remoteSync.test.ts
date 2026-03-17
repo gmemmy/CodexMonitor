@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { applyWorkspaceConnectionOverride, resolveRemoteSyncBannerContent } from "./remoteSync";
+import {
+  applyWorkspaceConnectionOverride,
+  ensureConnectedWorkspace,
+  resolveRemoteSyncBannerContent,
+} from "./remoteSync";
 
 describe("resolveRemoteSyncBannerContent", () => {
   it("keeps workspace refresh failures labeled as workspace stale when a thread is open", () => {
@@ -73,5 +77,28 @@ describe("resolveRemoteSyncBannerContent", () => {
       id: "ws-1",
       connected: true,
     });
+  });
+
+  it("reconnects a disconnected workspace before continuing", async () => {
+    const connectWorkspace = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      ensureConnectedWorkspace(
+        {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: false,
+          settings: { sidebarCollapsed: false },
+        },
+        connectWorkspace,
+      ),
+    ).resolves.toMatchObject({
+      id: "ws-1",
+      connected: true,
+    });
+    expect(connectWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ws-1", connected: false }),
+    );
   });
 });

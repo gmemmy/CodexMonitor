@@ -90,6 +90,17 @@ export function applyWorkspaceConnectionOverride(
   };
 }
 
+export async function ensureConnectedWorkspace(
+  workspace: WorkspaceInfo,
+  connectWorkspace?: (workspace: WorkspaceInfo) => Promise<unknown> | unknown,
+): Promise<WorkspaceInfo> {
+  if (workspace.connected || !connectWorkspace) {
+    return workspace;
+  }
+  await Promise.resolve(connectWorkspace(workspace));
+  return applyWorkspaceConnectionOverride(workspace, true);
+}
+
 export function normalizeThreadRefreshResult(result: unknown): ThreadRefreshResult {
   if (typeof result === "undefined") {
     return {

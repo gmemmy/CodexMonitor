@@ -86,7 +86,7 @@ import {
 import { subscribeTrayOpenThread } from "@services/events";
 import { setWorkspaceRuntimeCodexArgs } from "@services/tauri";
 import {
-  applyWorkspaceConnectionOverride,
+  ensureConnectedWorkspace,
   normalizeThreadRefreshResult,
   resolveRemoteSyncBannerContent,
 } from "@app/utils/remoteSync";
@@ -638,11 +638,10 @@ export default function MainApp() {
         activeWorkspace;
 
       if (activeThreadId) {
-        if (!refreshedWorkspace.connected) {
-          await connectWorkspace(refreshedWorkspace);
-          refreshedWorkspace = applyWorkspaceConnectionOverride(
+        if (appSettings.backendMode === "remote") {
+          refreshedWorkspace = await ensureConnectedWorkspace(
             refreshedWorkspace,
-            true,
+            connectWorkspace,
           );
         }
         await reconnectLive(refreshedWorkspace.id, activeThreadId, {
@@ -653,11 +652,10 @@ export default function MainApp() {
         return;
       }
 
-      if (!refreshedWorkspace.connected) {
-        await connectWorkspace(refreshedWorkspace);
-        refreshedWorkspace = applyWorkspaceConnectionOverride(
+      if (appSettings.backendMode === "remote") {
+        refreshedWorkspace = await ensureConnectedWorkspace(
           refreshedWorkspace,
-          true,
+          connectWorkspace,
         );
       }
 
@@ -684,9 +682,13 @@ export default function MainApp() {
     }
     setMobileThreadRefreshLoading(true);
     void (async () => {
+      let workspace = activeWorkspace;
+      if (appSettings.backendMode === "remote") {
+        workspace = await ensureConnectedWorkspace(workspace, connectWorkspace);
+      }
       let threadId = activeThreadId;
       if (!threadId) {
-        threadId = await startThreadForWorkspace(activeWorkspace.id, {
+        threadId = await startThreadForWorkspace(workspace.id, {
           activate: true,
         });
       }
@@ -694,18 +696,21 @@ export default function MainApp() {
         return;
       }
       const refreshResult = normalizeThreadRefreshResult(
-        await refreshThread(activeWorkspace.id, threadId),
+        await refreshThread(workspace.id, threadId),
       );
       if (!refreshResult.ok) {
         handleRemoteThreadRefreshFailure(
-          activeWorkspace.id,
+          workspace.id,
           threadId,
           refreshResult.errorMessage ?? "Unable to refresh the remote thread state.",
         );
         return;
       }
-      handleRemoteThreadRefreshSuccess(activeWorkspace.id, threadId);
-      await reconnectLive(activeWorkspace.id, threadId, { runResume: false });
+      handleRemoteThreadRefreshSuccess(workspace.id, threadId);
+      await reconnectLive(workspace.id, threadId, {
+        runResume: false,
+        workspaceConnectedHint: workspace.connected,
+      });
     })()
       .catch(() => {
         // Errors are surfaced through debug entries/toasts in existing thread actions.
@@ -716,6 +721,8 @@ export default function MainApp() {
   }, [
     activeThreadId,
     activeWorkspace,
+    appSettings.backendMode,
+    connectWorkspace,
     mobileThreadRefreshLoading,
     refreshThread,
     handleRemoteThreadRefreshFailure,
