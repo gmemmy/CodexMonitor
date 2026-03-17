@@ -8,7 +8,7 @@ import { useTabActivationGuard } from "@app/hooks/useTabActivationGuard";
 import {
   useRemoteThreadRefreshOnFocus,
 } from "@app/hooks/useRemoteThreadRefreshOnFocus";
-import type { WorkspaceInfo } from "@/types";
+import type { RemoteThreadConnectionState, WorkspaceInfo } from "@/types";
 
 type UseMainAppWorkspaceLifecycleArgs = {
   activeTab: "home" | "projects" | "codex" | "git" | "log";
@@ -23,8 +23,10 @@ type UseMainAppWorkspaceLifecycleArgs = {
   activeWorkspace: WorkspaceInfo | null;
   activeThreadId: string | null;
   threadStatusById: Record<string, { isProcessing: boolean }>;
-  remoteThreadConnectionState: "live" | "polling" | "disconnected";
+  remoteThreadConnectionState: RemoteThreadConnectionState;
   refreshThread: (workspaceId: string, threadId: string) => Promise<unknown>;
+  onRemoteThreadRefreshFailure?: (workspaceId: string, threadId: string, message: string) => void;
+  onRemoteThreadRefreshSuccess?: (workspaceId: string, threadId: string) => void;
 };
 
 export function useMainAppWorkspaceLifecycle({
@@ -42,6 +44,8 @@ export function useMainAppWorkspaceLifecycle({
   threadStatusById,
   remoteThreadConnectionState,
   refreshThread,
+  onRemoteThreadRefreshFailure,
+  onRemoteThreadRefreshSuccess,
 }: UseMainAppWorkspaceLifecycleArgs) {
   useTabActivationGuard({
     activeTab,
@@ -77,5 +81,7 @@ export function useMainAppWorkspaceLifecycle({
       backendMode === "remote" && remoteThreadConnectionState === "live",
     reconnectWorkspace: connectWorkspace,
     refreshThread,
+    onRefreshFailure: onRemoteThreadRefreshFailure,
+    onRefreshSuccess: onRemoteThreadRefreshSuccess,
   });
 }

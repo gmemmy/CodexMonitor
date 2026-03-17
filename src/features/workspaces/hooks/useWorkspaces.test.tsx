@@ -289,6 +289,56 @@ describe("useWorkspaces.connectWorkspace", () => {
   });
 });
 
+describe("useWorkspaces remote sync state", () => {
+  it("marks remote workspace data stale when refresh fails", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    listWorkspacesMock.mockRejectedValue(new Error("remote backend disconnected"));
+
+    const { result } = renderHook(() =>
+      useWorkspaces({
+        appSettings: {
+          backendMode: "remote",
+        } as any,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.remoteWorkspaceSyncState).toBe("stale");
+    expect(result.current.lastRemoteSyncFailure?.message).toBe(
+      "remote backend disconnected",
+    );
+  });
+
+  it("clears remote workspace failure state after a successful reconnect", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    const connectWorkspaceMock = vi.mocked(connectWorkspaceService);
+    listWorkspacesMock.mockResolvedValue([{ ...workspaceOne, connected: false }]);
+    connectWorkspaceMock.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useWorkspaces({
+        appSettings: {
+          backendMode: "remote",
+        } as any,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.connectWorkspace({ ...workspaceOne, connected: false });
+    });
+
+    expect(result.current.remoteWorkspaceSyncState).toBe("fresh");
+    expect(result.current.lastRemoteSyncFailure).toBeNull();
+  });
+});
+
 describe("useWorkspaces.addWorkspacesFromPaths", () => {
   it("adds multiple workspaces, activates the first, and returns structured result", async () => {
     const listWorkspacesMock = vi.mocked(listWorkspaces);

@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -96,6 +97,7 @@ type WorkspaceHomeProps = {
   onAgentMdChange: (value: string) => void;
   onAgentMdRefresh: () => void;
   onAgentMdSave: () => void;
+  remoteSyncBanner?: ReactNode;
 };
 
 export function WorkspaceHome({
@@ -159,6 +161,7 @@ export function WorkspaceHome({
   onAgentMdChange,
   onAgentMdRefresh,
   onAgentMdSave,
+  remoteSyncBanner = null,
 }: WorkspaceHomeProps) {
   const [showIcon, setShowIcon] = useState(true);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
@@ -370,6 +373,8 @@ export function WorkspaceHome({
           onInitGitRepo={onInitGitRepo}
         />
       )}
+
+      {remoteSyncBanner}
 
       <div className="workspace-home-composer">
         <div className="composer">

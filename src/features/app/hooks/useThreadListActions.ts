@@ -41,7 +41,10 @@ export function useThreadListActions({
 
   const handleRefreshAllWorkspaceThreads = useCallback(async () => {
     const refreshed = await refreshWorkspaces();
-    const source = refreshed ?? workspaces;
+    if (!Array.isArray(refreshed)) {
+      return;
+    }
+    const source = refreshed;
     const connectedWorkspaces = source.filter((workspace) => workspace.connected);
     connectedWorkspaces.forEach((workspace) => {
       resetWorkspaceThreads(workspace.id);
@@ -49,7 +52,7 @@ export function useThreadListActions({
     if (connectedWorkspaces.length > 0) {
       await listThreadsForWorkspaces(connectedWorkspaces);
     }
-  }, [refreshWorkspaces, workspaces, resetWorkspaceThreads, listThreadsForWorkspaces]);
+  }, [refreshWorkspaces, resetWorkspaceThreads, listThreadsForWorkspaces]);
 
   return {
     handleSetThreadListSortKey,

@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject } from "react";
 import type {
   ConversationItem,
   DebugEntry,
+  ThreadRefreshResult,
   ThreadListSortKey,
   ThreadSummary,
   WorkspaceInfo,
@@ -36,6 +37,7 @@ import {
 } from "@threads/utils/threadRpc";
 import { saveThreadActivity } from "@threads/utils/threadStorage";
 import type { ThreadAction, ThreadState } from "./useThreadsReducer";
+import { formatRemoteSyncErrorMessage } from "@/features/app/utils/remoteSync";
 
 const THREAD_LIST_TARGET_COUNT = 20;
 const THREAD_LIST_PAGE_SIZE = 100;
@@ -476,12 +478,39 @@ export function useThreadActions({
   );
 
   const refreshThread = useCallback(
-    async (workspaceId: string, threadId: string) => {
+    async (workspaceId: string, threadId: string): Promise<ThreadRefreshResult> => {
       if (!threadId) {
-        return null;
+        return {
+          ok: false,
+          threadId: null,
+          errorMessage: "Thread ID is required.",
+        };
       }
       replaceOnResumeRef.current[threadId] = true;
-      return resumeThreadForWorkspace(workspaceId, threadId, true, true);
+      try {
+        const refreshedThreadId = await resumeThreadForWorkspace(
+          workspaceId,
+          threadId,
+          true,
+          true,
+        );
+        return {
+          ok: Boolean(refreshedThreadId),
+          threadId: refreshedThreadId,
+          errorMessage: refreshedThreadId
+            ? null
+            : "Unable to refresh the remote thread state.",
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          threadId: null,
+          errorMessage: formatRemoteSyncErrorMessage(
+            error,
+            "Unable to refresh the remote thread state.",
+          ),
+        };
+      }
     },
     [replaceOnResumeRef, resumeThreadForWorkspace],
   );

@@ -1,7 +1,13 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import * as Sentry from "@sentry/react";
-import type { DebugEntry, WorkspaceInfo, WorkspaceSettings } from "../../../types";
+import type {
+  DebugEntry,
+  RemoteWorkspaceSyncState,
+  RemoteSyncFailure,
+  WorkspaceInfo,
+  WorkspaceSettings,
+} from "../../../types";
 import {
   addWorkspace as addWorkspaceService,
   addWorkspaceFromGitUrl as addWorkspaceFromGitUrlService,
@@ -11,14 +17,18 @@ import {
   removeWorkspace as removeWorkspaceService,
   updateWorkspaceSettings as updateWorkspaceSettingsService,
 } from "../../../services/tauri";
+import { buildRemoteSyncFailure, formatRemoteSyncErrorMessage } from "@/features/app/utils/remoteSync";
 
 type UseWorkspaceCrudOptions = {
   onDebug?: (entry: DebugEntry) => void;
+  backendMode: "local" | "remote";
   workspaces: WorkspaceInfo[];
   setWorkspaces: Dispatch<SetStateAction<WorkspaceInfo[]>>;
   setActiveWorkspaceId: Dispatch<SetStateAction<string | null>>;
   workspaceSettingsRef: MutableRefObject<Map<string, WorkspaceSettings>>;
   setHasLoaded: Dispatch<SetStateAction<boolean>>;
+  setRemoteWorkspaceSyncState: Dispatch<SetStateAction<RemoteWorkspaceSyncState>>;
+  setLastRemoteSyncFailure: Dispatch<SetStateAction<RemoteSyncFailure | null>>;
 };
 
 export type AddWorkspacesFromPathsFailure = {
@@ -89,16 +99,23 @@ function buildWorkspacePathKeyCandidates(path: string, homePrefixes: string[]): 
 
 export function useWorkspaceCrud({
   onDebug,
+  backendMode,
   workspaces,
   setWorkspaces,
   setActiveWorkspaceId,
   workspaceSettingsRef,
   setHasLoaded,
+  setRemoteWorkspaceSyncState,
+  setLastRemoteSyncFailure,
 }: UseWorkspaceCrudOptions) {
   const refreshWorkspaces = useCallback(async () => {
     try {
       const entries = await listWorkspaces();
       setWorkspaces(entries);
+      if (backendMode === "remote") {
+        setRemoteWorkspaceSyncState("fresh");
+        setLastRemoteSyncFailure(null);
+      }
       setActiveWorkspaceId((prev) => {
         if (!prev) {
           return prev;
@@ -109,10 +126,26 @@ export function useWorkspaceCrud({
       return entries;
     } catch (err) {
       console.error("Failed to load workspaces", err);
+      if (backendMode === "remote") {
+        setRemoteWorkspaceSyncState("stale");
+        setLastRemoteSyncFailure(
+          buildRemoteSyncFailure(
+            "workspace_refresh",
+            formatRemoteSyncErrorMessage(err, "Unable to refresh remote workspaces."),
+          ),
+        );
+      }
       setHasLoaded(true);
       return undefined;
     }
-  }, [setActiveWorkspaceId, setHasLoaded, setWorkspaces]);
+  }, [
+    backendMode,
+    setActiveWorkspaceId,
+    setHasLoaded,
+    setLastRemoteSyncFailure,
+    setRemoteWorkspaceSyncState,
+    setWorkspaces,
+  ]);
 
   const addWorkspaceFromPath = useCallback(
     async (path: string, options?: { activate?: boolean }) => {
@@ -336,6 +369,10 @@ export function useWorkspaceCrud({
               : workspace,
           ),
         );
+        if (backendMode === "remote") {
+          setRemoteWorkspaceSyncState("fresh");
+          setLastRemoteSyncFailure(null);
+        }
       } catch (error) {
         onDebug?.({
           id: `${Date.now()}-client-connect-workspace-error`,
@@ -344,10 +381,26 @@ export function useWorkspaceCrud({
           label: "workspace/connect error",
           payload: error instanceof Error ? error.message : String(error),
         });
+        if (backendMode === "remote") {
+          setRemoteWorkspaceSyncState("stale");
+          setLastRemoteSyncFailure(
+            buildRemoteSyncFailure(
+              "workspace_connect",
+              formatRemoteSyncErrorMessage(error, "Unable to reconnect to the remote workspace."),
+              entry.id,
+            ),
+          );
+        }
         throw error;
       }
     },
-    [onDebug, setWorkspaces],
+    [
+      backendMode,
+      onDebug,
+      setLastRemoteSyncFailure,
+      setRemoteWorkspaceSyncState,
+      setWorkspaces,
+    ],
   );
 
   const markWorkspaceConnected = useCallback(

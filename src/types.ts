@@ -58,6 +58,34 @@ export type WorkspaceInfo = {
   settings: WorkspaceSettings;
 };
 
+export type RemoteSyncFailurePhase =
+  | "workspace_refresh"
+  | "workspace_connect"
+  | "thread_refresh"
+  | "thread_live";
+
+export type RemoteSyncFailure = {
+  phase: RemoteSyncFailurePhase;
+  message: string;
+  at: number;
+  workspaceId?: string | null;
+  threadId?: string | null;
+};
+
+export type RemoteWorkspaceSyncState = "fresh" | "stale";
+
+export type RemoteThreadConnectionState =
+  | "live"
+  | "polling"
+  | "stale"
+  | "disconnected";
+
+export type ThreadRefreshResult = {
+  ok: boolean;
+  threadId: string | null;
+  errorMessage: string | null;
+};
+
 export type AppServerEvent = {
   workspace_id: string;
   message: Record<string, unknown>;
