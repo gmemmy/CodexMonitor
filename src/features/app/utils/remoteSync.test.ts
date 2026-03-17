@@ -9,7 +9,7 @@ import {
 } from "./remoteSync";
 
 describe("resolveRemotePresence", () => {
-  it("reports an online backend for connected idle remote state", () => {
+  it("reports a live workspace for connected idle remote state", () => {
     expect(
       resolveRemotePresence({
         activeWorkspaceConnected: true,
@@ -19,14 +19,15 @@ describe("resolveRemotePresence", () => {
         threadConnectionState: "polling",
       }),
     ).toEqual({
-      state: "online",
-      label: "Online",
-      title: "Remote backend online",
+      state: "live",
+      scope: "workspace",
+      label: "Live",
+      title: "Remote workspace live",
       detailLabel: null,
     });
   });
 
-  it("reports a running remote session and surfaces reconnecting detail", () => {
+  it("reports a polling remote session and surfaces cached-data detail", () => {
     expect(
       resolveRemotePresence({
         activeWorkspaceConnected: true,
@@ -36,57 +37,22 @@ describe("resolveRemotePresence", () => {
         threadConnectionState: "polling",
       }),
     ).toEqual({
-      state: "running",
-      label: "Running",
-      title: "Remote session running, reconnecting now",
-      detailLabel: "Reconnecting",
+      state: "polling",
+      scope: "session",
+      label: "Polling",
+      title: "Remote session polling",
+      detailLabel: "Refreshing cached data",
     });
   });
 
-  it("reports offline when the workspace is disconnected", () => {
+  it("surfaces the failure source when the thread live stream drops", () => {
     expect(
       resolveRemotePresence({
-        activeWorkspaceConnected: false,
+        activeWorkspaceConnected: true,
         activeThreadId: "thread-1",
         activeThreadIsProcessing: true,
-        workspaceSyncState: "fresh",
-        threadConnectionState: "live",
-      }),
-    ).toEqual({
-      state: "offline",
-      label: "Offline",
-      title: "Remote backend offline",
-      detailLabel: null,
-    });
-  });
-});
-
-describe("resolveRemoteSyncBannerContent", () => {
-  it("keeps workspace refresh failures labeled as workspace stale when a thread is open", () => {
-    expect(
-      resolveRemoteSyncBannerContent({
-        presenceState: "stale",
-        activeThreadId: "thread-1",
-        failure: {
-          phase: "workspace_refresh",
-          message: "remote backend disconnected",
-          at: 1,
-          workspaceId: "ws-1",
-          threadId: null,
-        },
-      }),
-    ).toEqual({
-      state: "stale",
-      title: "Remote backend state is stale",
-      message: "Last sync failed: remote backend disconnected",
-    });
-  });
-
-  it("labels thread sync failures as thread stale when a thread is open", () => {
-    expect(
-      resolveRemoteSyncBannerContent({
-        presenceState: "stale",
-        activeThreadId: "thread-1",
+        workspaceSyncState: "stale",
+        threadConnectionState: "stale",
         failure: {
           phase: "thread_live",
           message: "Lost live connection to the remote thread.",
@@ -97,22 +63,86 @@ describe("resolveRemoteSyncBannerContent", () => {
       }),
     ).toEqual({
       state: "stale",
-      title: "Remote session state is stale",
-      message: "Last sync failed: Lost live connection to the remote thread.",
+      scope: "session",
+      label: "Stale",
+      title: "Remote session stale",
+      detailLabel: "Live stream dropped",
+    });
+  });
+
+  it("reports disconnected when the workspace connection drops", () => {
+    expect(
+      resolveRemotePresence({
+        activeWorkspaceConnected: false,
+        activeThreadId: "thread-1",
+        activeThreadIsProcessing: true,
+        workspaceSyncState: "fresh",
+        threadConnectionState: "live",
+      }),
+    ).toEqual({
+      state: "disconnected",
+      scope: "workspace",
+      label: "Disconnected",
+      title: "Remote workspace disconnected",
+      detailLabel: "Reconnect required",
+    });
+  });
+});
+
+describe("resolveRemoteSyncBannerContent", () => {
+  it("keeps workspace refresh failures labeled as workspace stale when a thread is open", () => {
+    expect(
+      resolveRemoteSyncBannerContent({
+        surface: "workspace",
+        presenceState: "stale",
+        failure: {
+          phase: "workspace_refresh",
+          message: "remote backend disconnected",
+          at: 1,
+          workspaceId: "ws-1",
+          threadId: null,
+        },
+      }),
+    ).toEqual({
+      state: "stale",
+      title: "Remote workspace stale",
+      message:
+        "Showing cached remote workspace data until the next successful refresh. Last workspace refresh failed: remote backend disconnected",
+    });
+  });
+
+  it("labels thread sync failures as thread stale when a thread is open", () => {
+    expect(
+      resolveRemoteSyncBannerContent({
+        surface: "session",
+        presenceState: "stale",
+        failure: {
+          phase: "thread_live",
+          message: "Lost live connection to the remote thread.",
+          at: 1,
+          workspaceId: "ws-1",
+          threadId: "thread-1",
+        },
+      }),
+    ).toEqual({
+      state: "stale",
+      title: "Remote session stale",
+      message:
+        "Showing cached remote session data until the next successful refresh. Last live update failed: Lost live connection to the remote thread.",
     });
   });
 
   it("falls back to a disconnected reconnect prompt when no failure reason is available", () => {
     expect(
       resolveRemoteSyncBannerContent({
-        presenceState: "offline",
-        activeThreadId: "thread-1",
+        surface: "workspace",
+        presenceState: "disconnected",
         failure: null,
       }),
     ).toEqual({
-      state: "offline",
-      title: "Remote backend is offline",
-      message: "Reconnect to restore live data from the remote backend.",
+      state: "disconnected",
+      title: "Remote workspace disconnected",
+      message: "Showing cached remote workspace data until reconnect succeeds.",
     });
   });
 

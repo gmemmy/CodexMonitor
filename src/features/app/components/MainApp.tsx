@@ -1507,6 +1507,10 @@ export default function MainApp() {
     onRemoteThreadRefreshSuccess: handleRemoteThreadRefreshSuccess,
   });
 
+  const remoteSyncFailure = selectLatestRemoteSyncFailure(
+    remoteThreadLastFailure,
+    lastRemoteSyncFailure,
+  );
   const remotePresence = useMemo(
     () =>
       resolveRemotePresence({
@@ -1516,32 +1520,30 @@ export default function MainApp() {
         workspaceSyncState: remoteWorkspaceSyncState,
         threadConnectionState: remoteThreadConnectionState,
         reconnecting: remoteReconnectLoading,
+        failure: remoteSyncFailure,
       }),
     [
       activeThreadId,
       activeThreadIsProcessing,
       activeWorkspace?.connected,
       remoteReconnectLoading,
+      remoteSyncFailure,
       remoteThreadConnectionState,
       remoteWorkspaceSyncState,
     ],
-  );
-  const remoteSyncFailure = selectLatestRemoteSyncFailure(
-    remoteThreadLastFailure,
-    lastRemoteSyncFailure,
   );
   const remoteSyncBannerNode = useMemo(() => {
     const bannerPresenceState = remotePresence.state;
     if (
       appSettings.backendMode !== "remote" ||
       !activeWorkspace ||
-      (bannerPresenceState !== "stale" && bannerPresenceState !== "offline")
+      (bannerPresenceState !== "stale" && bannerPresenceState !== "disconnected")
     ) {
       return null;
     }
     const banner = resolveRemoteSyncBannerContent({
+      surface: remotePresence.scope,
       presenceState: bannerPresenceState,
-      activeThreadId,
       failure: remoteSyncFailure,
     });
 
@@ -1555,10 +1557,10 @@ export default function MainApp() {
       />
     );
   }, [
-    activeThreadId,
     activeWorkspace,
     appSettings.backendMode,
     handleReconnectRemote,
+    remotePresence.scope,
     remotePresence.state,
     remoteReconnectLoading,
     remoteSyncFailure,
@@ -2196,7 +2198,7 @@ export default function MainApp() {
       backendMode: appSettings.backendMode,
       remotePresence,
       showReconnectAction:
-        remotePresence.state === "stale" || remotePresence.state === "offline",
+        remotePresence.state === "stale" || remotePresence.state === "disconnected",
       reconnectLoading: remoteReconnectLoading,
       onReconnect: handleReconnectRemote,
     },
