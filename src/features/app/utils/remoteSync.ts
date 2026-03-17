@@ -7,6 +7,7 @@ import type {
   ThreadRefreshResult,
   WorkspaceInfo,
 } from "@/types";
+import { formatRelativeTime } from "@/utils/time";
 
 export function formatRemoteSyncErrorMessage(
   error: unknown,
@@ -57,8 +58,11 @@ function isWorkspaceFailurePhase(
   return phase === "workspace_refresh" || phase === "workspace_connect";
 }
 
+export type RemoteSyncSurface = "workspace" | "session";
+
 export type ResolvedRemotePresence = {
   state: RemotePresenceState;
+  scope: RemoteSyncSurface;
   label: string;
   title: string;
   detailLabel: string | null;
@@ -71,19 +75,106 @@ type ResolveRemotePresenceOptions = {
   workspaceSyncState: RemoteWorkspaceSyncState;
   threadConnectionState: RemoteThreadConnectionState;
   reconnecting?: boolean;
+  failure?: RemoteSyncFailure | null;
+  workspaceLastSuccessAt?: number | null;
+  sessionLastSuccessAt?: number | null;
 };
 
 function formatRemotePresenceLabel(state: RemotePresenceState): string {
   switch (state) {
-    case "online":
-      return "Online";
-    case "running":
-      return "Running";
+    case "live":
+      return "Live";
+    case "polling":
+      return "Polling";
     case "stale":
       return "Stale";
-    case "offline":
-      return "Offline";
+    case "disconnected":
+      return "Disconnected";
   }
+}
+
+function resolveRemoteSyncSurface({
+  activeWorkspaceConnected,
+  activeThreadId,
+  workspaceSyncState,
+  threadConnectionState,
+  failure,
+}: {
+  activeWorkspaceConnected: boolean;
+  activeThreadId?: string | null;
+  workspaceSyncState: RemoteWorkspaceSyncState;
+  threadConnectionState: RemoteThreadConnectionState;
+  failure?: RemoteSyncFailure | null;
+}): RemoteSyncSurface {
+  if (isWorkspaceFailurePhase(failure?.phase)) {
+    return "workspace";
+  }
+  if (!activeThreadId || !activeWorkspaceConnected) {
+    return "workspace";
+  }
+  if (workspaceSyncState === "stale" && threadConnectionState !== "stale") {
+    return "workspace";
+  }
+  return "session";
+}
+
+function formatRemoteSurfaceTitle(
+  surface: RemoteSyncSurface,
+  state: RemotePresenceState,
+): string {
+  const subject = surface === "session" ? "Remote session" : "Remote workspace";
+  return `${subject} ${state}`;
+}
+
+function formatRemoteFailureDetail(
+  phase: RemoteSyncFailurePhase | null | undefined,
+): string | null {
+  switch (phase) {
+    case "workspace_refresh":
+      return "Workspace refresh failed";
+    case "workspace_connect":
+      return "Workspace reconnect failed";
+    case "thread_refresh":
+      return "Session refresh failed";
+    case "thread_live":
+      return "Live stream dropped";
+    default:
+      return null;
+  }
+}
+
+function formatRemoteBannerFailureLead(
+  phase: RemoteSyncFailurePhase | null | undefined,
+): string {
+  switch (phase) {
+    case "workspace_refresh":
+      return "Last workspace refresh failed";
+    case "workspace_connect":
+      return "Last workspace reconnect failed";
+    case "thread_refresh":
+      return "Last session refresh failed";
+    case "thread_live":
+      return "Last live update failed";
+    default:
+      return "Last sync failed";
+  }
+}
+
+function formatLastConfirmedDetail(at: number | null | undefined): string | null {
+  if (typeof at !== "number" || !Number.isFinite(at)) {
+    return null;
+  }
+  return `Last confirmed ${formatRelativeTime(at)}`;
+}
+
+function formatLastConfirmedMessage(
+  surface: RemoteSyncSurface,
+  at: number | null | undefined,
+): string | null {
+  if (typeof at !== "number" || !Number.isFinite(at)) {
+    return null;
+  }
+  return `Last confirmed ${surface} refresh ${formatRelativeTime(at)}.`;
 }
 
 export function resolveRemotePresence({
@@ -93,85 +184,105 @@ export function resolveRemotePresence({
   workspaceSyncState,
   threadConnectionState,
   reconnecting = false,
+  failure = null,
+  workspaceLastSuccessAt = null,
+  sessionLastSuccessAt = null,
 }: ResolveRemotePresenceOptions): ResolvedRemotePresence {
   const hasActiveSession = Boolean(activeThreadId);
-  const isOffline =
-    !activeWorkspaceConnected || threadConnectionState === "disconnected";
+  const surface = resolveRemoteSyncSurface({
+    activeWorkspaceConnected,
+    activeThreadId,
+    workspaceSyncState,
+    threadConnectionState,
+    failure,
+  });
+  const lastSuccessAt =
+    surface === "session" ? sessionLastSuccessAt : workspaceLastSuccessAt;
+  const isDisconnected =
+    !activeWorkspaceConnected ||
+    (hasActiveSession && threadConnectionState === "disconnected");
   const isStale =
-    workspaceSyncState === "stale" || threadConnectionState === "stale";
-  const state: RemotePresenceState = isOffline
-    ? "offline"
+    workspaceSyncState === "stale" ||
+    (hasActiveSession && threadConnectionState === "stale");
+  const isPolling =
+    reconnecting || (hasActiveSession && threadConnectionState === "polling");
+  const state: RemotePresenceState = isDisconnected
+    ? "disconnected"
     : isStale
       ? "stale"
-      : activeThreadIsProcessing
-        ? "running"
-        : "online";
-  const isRecovering =
-    state !== "stale" &&
-    state !== "offline" &&
-    (reconnecting || (hasActiveSession && threadConnectionState === "polling"));
-
-  let title: string;
-  if (state === "offline") {
-    title = "Remote backend offline";
-  } else if (state === "stale") {
-    title = hasActiveSession
-      ? "Remote session state is stale"
-      : "Remote backend state is stale";
-  } else if (state === "running") {
-    title = isRecovering
-      ? "Remote session running, reconnecting now"
-      : "Remote session running";
-  } else {
-    title = hasActiveSession
-      ? isRecovering
-        ? "Remote session online, reconnecting now"
-        : "Remote session online"
-      : "Remote backend online";
-  }
+      : isPolling
+        ? "polling"
+        : "live";
+  const failureDetail = formatRemoteFailureDetail(failure?.phase);
+  const lastConfirmedDetail =
+    state === "stale" || state === "disconnected"
+      ? formatLastConfirmedDetail(lastSuccessAt)
+      : null;
+  const detailLabel =
+    state === "polling"
+      ? "Refreshing cached data"
+      : state === "stale"
+        ? lastConfirmedDetail ?? failureDetail ?? "Cached data"
+        : state === "disconnected"
+          ? lastConfirmedDetail ?? failureDetail ?? "Reconnect required"
+          : activeThreadIsProcessing
+            ? "Run active"
+            : null;
 
   return {
     state,
+    scope: surface,
     label: formatRemotePresenceLabel(state),
-    title,
-    detailLabel: isRecovering ? "Reconnecting" : null,
+    title: formatRemoteSurfaceTitle(surface, state),
+    detailLabel,
   };
 }
 
 type ResolveRemoteSyncBannerOptions = {
-  presenceState: Extract<RemotePresenceState, "stale" | "offline">;
-  activeThreadId?: string | null;
+  surface: RemoteSyncSurface;
+  presenceState: Extract<RemotePresenceState, "stale" | "disconnected">;
   failure?: RemoteSyncFailure | null;
+  workspaceLastSuccessAt?: number | null;
+  sessionLastSuccessAt?: number | null;
 };
 
 export function resolveRemoteSyncBannerContent({
+  surface,
   presenceState,
-  activeThreadId = null,
   failure = null,
+  workspaceLastSuccessAt = null,
+  sessionLastSuccessAt = null,
 }: ResolveRemoteSyncBannerOptions): {
-  state: "stale" | "offline";
+  state: "stale" | "disconnected";
   title: string;
   message: string;
 } {
-  const isOffline = presenceState === "offline";
-  const showWorkspaceTitle =
-    isWorkspaceFailurePhase(failure?.phase) || (!activeThreadId && !isOffline);
-  const title = isOffline
-    ? "Remote backend is offline"
-    : showWorkspaceTitle
-      ? "Remote backend state is stale"
-      : "Remote session state is stale";
+  const state = presenceState === "disconnected" ? "disconnected" : "stale";
+  const title = formatRemoteSurfaceTitle(surface, state);
+  const subject = surface === "session" ? "session data" : "workspace data";
+  const lastConfirmedMessage = formatLastConfirmedMessage(
+    surface,
+    surface === "session" ? sessionLastSuccessAt : workspaceLastSuccessAt,
+  );
+  const cachedDataMessage =
+    state === "disconnected"
+      ? `Showing cached remote ${subject} until reconnect succeeds.`
+      : `Showing cached remote ${subject} until the next successful refresh.`;
   const trimmedFailureMessage = failure?.message?.trim() ?? "";
-  const message = trimmedFailureMessage
-    ? `Last sync failed: ${trimmedFailureMessage}`
-    : isOffline
-      ? "Reconnect to restore live data from the remote backend."
-      : "The latest remote sync failed, so remote state may be stale.";
+  const messageParts = [cachedDataMessage];
+  if (trimmedFailureMessage) {
+    messageParts.push(
+      `${formatRemoteBannerFailureLead(failure?.phase)}: ${trimmedFailureMessage}`,
+    );
+  }
+  if (lastConfirmedMessage) {
+    messageParts.push(lastConfirmedMessage);
+  }
 
   return {
-    state: isOffline ? "offline" : "stale",
+    state,
     title,
-    message,
+    message: messageParts.join(" "),
   };
 }
 

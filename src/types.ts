@@ -86,7 +86,7 @@ export type RemoteThreadConnectionState =
   | "stale"
   | "disconnected";
 
-export type RemotePresenceState = "online" | "running" | "stale" | "offline";
+export type RemotePresenceState = "live" | "polling" | "stale" | "disconnected";
 
 export type ThreadRefreshResult = {
   ok: boolean;

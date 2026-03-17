@@ -37,9 +37,10 @@ function buildArgs(
       hasActiveWorkspace: true,
       backendMode: "remote",
       remotePresence: {
-        state: "online",
-        label: "Online",
-        title: "Remote backend online",
+        state: "live",
+        scope: "workspace",
+        label: "Live",
+        title: "Remote workspace live",
         detailLabel: null,
       },
       showReconnectAction: false,
@@ -84,34 +85,36 @@ function findButton(node: ReactNode): ReactNode | null {
 }
 
 describe("useMainAppShellProps", () => {
-  it("renders running presence with a reconnecting note", () => {
+  it("renders polling presence with a cached-data note", () => {
     const result = useMainAppShellProps(
       buildArgs({
         remotePresence: {
-          state: "running",
-          label: "Running",
-          title: "Remote session running, reconnecting now",
-          detailLabel: "Reconnecting",
+          state: "polling",
+          scope: "session",
+          label: "Polling",
+          title: "Remote session polling",
+          detailLabel: "Refreshing cached data",
         },
       }),
     );
 
     const text = collectText(result.appLayoutProps.topbarActionsNode);
 
-    expect(text).toContain("Running");
-    expect(text).toContain("Reconnecting");
+    expect(text).toContain("Polling");
+    expect(text).toContain("Refreshing cached data");
     expect(findButton(result.appLayoutProps.topbarActionsNode)).toBeNull();
   });
 
-  it("renders an offline reconnect action with loading copy", () => {
+  it("renders a disconnected reconnect action with loading copy", () => {
     const onReconnect = vi.fn();
     const result = useMainAppShellProps(
       buildArgs({
         remotePresence: {
-          state: "offline",
-          label: "Offline",
-          title: "Remote backend offline",
-          detailLabel: null,
+          state: "disconnected",
+          scope: "workspace",
+          label: "Disconnected",
+          title: "Remote workspace disconnected",
+          detailLabel: "Reconnect required",
         },
         showReconnectAction: true,
         reconnectLoading: true,
@@ -122,7 +125,8 @@ describe("useMainAppShellProps", () => {
     const text = collectText(result.appLayoutProps.topbarActionsNode);
     const button = findButton(result.appLayoutProps.topbarActionsNode);
 
-    expect(text).toContain("Offline");
+    expect(text).toContain("Disconnected");
+    expect(text).toContain("Reconnect required");
     expect(text).toContain("Reconnecting…");
     expect(isValidElement<{ disabled?: boolean; children?: ReactNode }>(button)).toBe(true);
     if (isValidElement<{ disabled?: boolean; children?: ReactNode }>(button)) {

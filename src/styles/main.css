@@ -901,16 +901,16 @@
   white-space: nowrap;
 }
 
-.compact-workspace-live-indicator.is-online {
-  color: var(--text-accent);
-  border-color: color-mix(in srgb, var(--border-accent) 72%, transparent);
-  background: color-mix(in srgb, var(--border-accent) 14%, transparent);
-}
-
-.compact-workspace-live-indicator.is-running {
+.compact-workspace-live-indicator.is-live {
   color: var(--status-success);
   border-color: color-mix(in srgb, var(--status-success) 38%, transparent);
   background: color-mix(in srgb, var(--status-success) 12%, transparent);
+}
+
+.compact-workspace-live-indicator.is-polling {
+  color: var(--text-accent);
+  border-color: color-mix(in srgb, var(--border-accent) 72%, transparent);
+  background: color-mix(in srgb, var(--border-accent) 14%, transparent);
 }
 
 .compact-workspace-live-indicator.is-stale {
@@ -919,7 +919,7 @@
   background: color-mix(in srgb, var(--status-warning) 18%, transparent);
 }
 
-.compact-workspace-live-indicator.is-offline {
+.compact-workspace-live-indicator.is-disconnected {
   color: var(--status-error);
   border-color: color-mix(in srgb, var(--status-error) 42%, transparent);
   background: color-mix(in srgb, var(--status-error) 12%, transparent);
@@ -957,7 +957,7 @@
   background: color-mix(in srgb, var(--status-warning) 12%, transparent);
 }
 
-.remote-sync-banner-offline {
+.remote-sync-banner-disconnected {
   border-color: color-mix(in srgb, var(--status-error) 48%, var(--border-subtle));
   background: color-mix(in srgb, var(--status-error) 12%, transparent);
 }
