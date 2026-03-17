@@ -4,6 +4,7 @@ import type {
   AppSettings,
   ThreadListSortKey,
   ThreadRefreshResult,
+  ThreadSummary,
   WorkspaceInfo,
 } from "@/types";
 import {
@@ -34,7 +35,7 @@ type UseBackendSelectionContinuityArgs = {
       sortKey?: ThreadListSortKey;
       maxPages?: number;
     },
-  ) => Promise<unknown>;
+  ) => Promise<ThreadSummary[] | null>;
   refreshThread: (workspaceId: string, threadId: string) => Promise<ThreadRefreshResult>;
 };
 

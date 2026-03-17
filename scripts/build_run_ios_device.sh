@@ -14,6 +14,7 @@ LIST_DEVICES=0
 IOS_APP_ICONSET_DIR="src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"
 TAURI_IOS_LOCAL_CONFIG="src-tauri/tauri.ios.local.conf.json"
 TAURI_CONFIG_ARGS=()
+DERIVED_DATA_APP_GLOB="${HOME}/Library/Developer/Xcode/DerivedData/codex-monitor-"*
 
 usage() {
   cat <<'EOF'
@@ -33,6 +34,24 @@ Options:
   --list-devices       Print devices known by devicectl and exit
   -h, --help           Show this help
 EOF
+}
+
+find_latest_derived_data_app() {
+  find "${HOME}/Library/Developer/Xcode/DerivedData" \
+    -path "*codex-monitor-*/Build/Products/debug-iphoneos/Codex Monitor.app" \
+    -type d \
+    -print 2>/dev/null | while IFS= read -r path; do
+      stat -f '%m %N' "$path"
+    done | sort -nr | head -n 1 | cut -d' ' -f2-
+}
+
+resolve_default_device() {
+  xcrun devicectl list devices \
+    --columns Identifier State Platform \
+    --hide-headers 2>/dev/null | awk '
+      $3 == "iOS" && $2 ~ /^available/ { print $1; exit }
+      $3 == "iOS" && $2 ~ /^connected/ { print $1; exit }
+    '
 }
 
 while [[ $# -gt 0 ]]; do
@@ -164,8 +183,12 @@ if [[ "$LIST_DEVICES" -eq 1 ]]; then
 fi
 
 if [[ "$OPEN_XCODE" -eq 0 && -z "$DEVICE" ]]; then
-  echo "--device is required for install/launch. Use --list-devices to discover IDs." >&2
-  exit 1
+  DEVICE="$(resolve_default_device || true)"
+  if [[ -z "$DEVICE" ]]; then
+    echo "--device is required for install/launch. Use --list-devices to discover IDs." >&2
+    exit 1
+  fi
+  echo "Auto-selected device: $DEVICE"
 fi
 
 NPM_BIN="$(resolve_npm || true)"
@@ -215,12 +238,20 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     exit 0
   fi
   BUILD_CMD+=(--ci)
-  "${BUILD_CMD[@]}"
+  if ! "${BUILD_CMD[@]}"; then
+    APP_PATH="$(find_latest_derived_data_app || true)"
+    if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
+      exit 1
+    fi
+    echo "Falling back to latest Xcode device build at: $APP_PATH"
+  fi
 fi
 
-APP_PATH="src-tauri/gen/apple/build/arm64/Codex Monitor.app"
-if [[ ! -d "$APP_PATH" ]]; then
-  APP_PATH="$(find src-tauri/gen/apple/build -maxdepth 4 -type d -name 'Codex Monitor.app' | head -n 1 || true)"
+if [[ -z "${APP_PATH:-}" ]]; then
+  APP_PATH="src-tauri/gen/apple/build/arm64/Codex Monitor.app"
+  if [[ ! -d "$APP_PATH" ]]; then
+    APP_PATH="$(find src-tauri/gen/apple/build -maxdepth 4 -type d -name 'Codex Monitor.app' | head -n 1 || true)"
+  fi
 fi
 
 if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
