@@ -663,9 +663,13 @@ export default function MainApp() {
       if (refreshedWorkspace.connected) {
         await listThreadsForWorkspaces([refreshedWorkspace], { preserveState: true });
       }
-    })().finally(() => {
-      setRemoteReconnectLoading(false);
-    });
+    })()
+      .catch(() => {
+        // Reconnect failures already update explicit remote sync state.
+      })
+      .finally(() => {
+        setRemoteReconnectLoading(false);
+      });
   }, [
     activeThreadId,
     activeWorkspace,
