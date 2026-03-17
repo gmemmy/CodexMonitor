@@ -225,6 +225,10 @@ npm run tauri:build
 
 Artifacts will be in `src-tauri/target/release/bundle/` (platform-specific subfolders).
 
+On macOS, if Finder automation is blocked for DMG cosmetics, the build now falls back
+to a `--skip-jenkins` DMG path automatically. The resulting DMG is usable, but it
+will not include custom Finder background or icon positioning.
+
 ### Windows (opt-in)
 
 Windows builds are opt-in and use a separate Tauri config file to avoid macOS-only window effects.
