@@ -288,6 +288,19 @@ pub(crate) struct WorkspaceInfo {
     pub(crate) settings: WorkspaceSettings,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActiveTerminalSessionInfo {
+    #[serde(rename = "terminalId")]
+    pub(crate) terminal_id: String,
+    #[serde(rename = "createdAt")]
+    pub(crate) created_at: u64,
+    #[serde(default)]
+    pub(crate) title: Option<String>,
+    #[serde(default)]
+    pub(crate) source: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum WorkspaceKind {

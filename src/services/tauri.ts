@@ -3,6 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Options as NotificationOptions } from "@tauri-apps/plugin-notification";
 import type {
   ActiveSelectionState,
+  ActiveTerminalSession,
   AppSettings,
   CodexUpdateResult,
   CodexDoctorResult,
@@ -1081,6 +1082,12 @@ export async function closeTerminalSession(
   terminalId: string,
 ): Promise<void> {
   return invoke("terminal_close", { workspaceId, terminalId });
+}
+
+export async function listActiveTerminalSessions(
+  workspaceId: string,
+): Promise<ActiveTerminalSession[]> {
+  return invoke<ActiveTerminalSession[]>("list_active_terminal_sessions", { workspaceId });
 }
 
 export async function listThreads(

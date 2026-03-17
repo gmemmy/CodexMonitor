@@ -59,6 +59,13 @@ export type WorkspaceInfo = {
   settings: WorkspaceSettings;
 };
 
+export type ActiveTerminalSession = {
+  terminalId: string;
+  createdAt: number;
+  title: string | null;
+  source: string | null;
+};
+
 export type ActiveSelectionState = {
   activeWorkspaceId: string | null;
   activeThreadIdByWorkspace: Record<string, string>;
