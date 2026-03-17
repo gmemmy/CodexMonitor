@@ -1649,6 +1649,8 @@ describe("useThreads UX integration", () => {
 
   it("orders thread lists, applies custom names, and keeps pin ordering stable", async () => {
     const listThreadsMock = vi.mocked(listThreads);
+    const pinnedThreads: Record<string, number> = {};
+    let pinVersion = 0;
     listThreadsMock.mockResolvedValue({
       result: {
         data: [
@@ -1675,11 +1677,29 @@ describe("useThreads UX integration", () => {
       },
     });
 
-    const { result } = renderHook(() =>
-      useThreads({
-        activeWorkspace: workspace,
-        onWorkspaceConnected: vi.fn(),
-      }),
+    const pinThread = (workspaceId: string, threadId: string) => {
+      const key = `${workspaceId}:${threadId}`;
+      if (key in pinnedThreads) {
+        return false;
+      }
+      pinnedThreads[key] = now;
+      pinVersion += 1;
+      return true;
+    };
+
+    const getPinTimestamp = (workspaceId: string, threadId: string) =>
+      pinnedThreads[`${workspaceId}:${threadId}`] ?? null;
+
+    const { result, rerender } = renderHook(
+      ({ currentPinVersion }: { currentPinVersion: number }) =>
+        useThreads({
+          activeWorkspace: workspace,
+          onWorkspaceConnected: vi.fn(),
+          pinThread,
+          getPinTimestamp,
+          pinnedThreadsVersion: currentPinVersion,
+        }),
+      { initialProps: { currentPinVersion: pinVersion } },
     );
 
     const { result: threadRowsResult } = renderHook(() =>
@@ -1716,16 +1736,19 @@ describe("useThreads UX integration", () => {
     act(() => {
       result.current.pinThread("ws-1", "thread-c");
     });
+    rerender({ currentPinVersion: pinVersion });
     now = 6000;
     act(() => {
       result.current.pinThread("ws-1", "thread-a");
     });
+    rerender({ currentPinVersion: pinVersion });
 
     const { pinnedRows, unpinnedRows } = threadRowsResult.current.getThreadRows(
       result.current.threadsByWorkspace["ws-1"] ?? [],
       true,
       "ws-1",
       result.current.getPinTimestamp,
+      result.current.pinnedThreadsVersion,
     );
 
     expect(pinnedRows.map((row) => row.thread.id)).toEqual([

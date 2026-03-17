@@ -22,6 +22,7 @@ import {
   readGlobalCodexConfigToml,
   listWorkspaces,
   openWorkspaceIn,
+  pinWorkspaceThread,
   readAgentMd,
   stageGitAll,
   respondToServerRequest,
@@ -35,6 +36,7 @@ import {
   setTraySessionUsage,
   startReview,
   setThreadName,
+  unpinWorkspaceThread,
   tailscaleDaemonStart,
   tailscaleDaemonCommandPreview,
   tailscaleDaemonStatus,
@@ -255,6 +257,30 @@ describe("tauri invoke wrappers", () => {
       workspaceId: "ws-9",
       threadId: "thread-9",
       name: "New Name",
+    });
+  });
+
+  it("maps workspaceId and threadId for pin_workspace_thread", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await pinWorkspaceThread("ws-11", "thread-11");
+
+    expect(invokeMock).toHaveBeenCalledWith("pin_workspace_thread", {
+      workspaceId: "ws-11",
+      threadId: "thread-11",
+    });
+  });
+
+  it("maps workspaceId and threadId for unpin_workspace_thread", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await unpinWorkspaceThread("ws-12", "thread-12");
+
+    expect(invokeMock).toHaveBeenCalledWith("unpin_workspace_thread", {
+      workspaceId: "ws-12",
+      threadId: "thread-12",
     });
   });
 

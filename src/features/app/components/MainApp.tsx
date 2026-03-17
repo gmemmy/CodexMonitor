@@ -168,6 +168,11 @@ export default function MainApp() {
     connectWorkspace,
     markWorkspaceConnected,
     updateWorkspaceSettings,
+    pinnedThreadsVersion: workspacePinnedThreadsVersion,
+    pinThread: pinWorkspaceThread,
+    unpinThread: unpinWorkspaceThread,
+    isThreadPinned: isWorkspaceThreadPinned,
+    getPinTimestamp: getWorkspacePinTimestamp,
     createWorkspaceGroup,
     renameWorkspaceGroup,
     moveWorkspaceGroup,
@@ -589,6 +594,11 @@ export default function MainApp() {
     onMessageActivity: handleThreadMessageActivity,
     threadSortKey: threadListSortKey,
     onThreadCodexMetadataDetected: handleThreadCodexMetadataDetected,
+    pinnedThreadsVersion: workspacePinnedThreadsVersion,
+    pinThread: pinWorkspaceThread,
+    unpinThread: unpinWorkspaceThread,
+    isThreadPinned: isWorkspaceThreadPinned,
+    getPinTimestamp: getWorkspacePinTimestamp,
   });
   const {
     handoffRemoteBackend,

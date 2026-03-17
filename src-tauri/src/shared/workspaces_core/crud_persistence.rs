@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -598,16 +599,74 @@ where
         workspaces.values().cloned().collect()
     };
     write_workspaces(storage_path, &list)?;
-    Ok(WorkspaceInfo {
-        id: entry_snapshot.id,
-        name: entry_snapshot.name,
-        path: entry_snapshot.path,
+    Ok(build_workspace_info(entry_snapshot, connected))
+}
+
+pub(crate) async fn pin_workspace_thread_core(
+    workspace_id: String,
+    thread_id: String,
+    workspaces: &Mutex<HashMap<String, WorkspaceEntry>>,
+    sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    storage_path: &PathBuf,
+) -> Result<WorkspaceInfo, String> {
+    let entry_snapshot = {
+        let mut workspaces = workspaces.lock().await;
+        let entry = workspaces
+            .get_mut(&workspace_id)
+            .ok_or_else(|| "workspace not found".to_string())?;
+        entry
+            .settings
+            .pinned_threads
+            .insert(thread_id, current_time_ms()?);
+        let entry_snapshot = entry.clone();
+        let list: Vec<_> = workspaces.values().cloned().collect();
+        write_workspaces(storage_path, &list)?;
+        entry_snapshot
+    };
+    let connected = sessions.lock().await.contains_key(&workspace_id);
+    Ok(build_workspace_info(entry_snapshot, connected))
+}
+
+pub(crate) async fn unpin_workspace_thread_core(
+    workspace_id: String,
+    thread_id: String,
+    workspaces: &Mutex<HashMap<String, WorkspaceEntry>>,
+    sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    storage_path: &PathBuf,
+) -> Result<WorkspaceInfo, String> {
+    let entry_snapshot = {
+        let mut workspaces = workspaces.lock().await;
+        let entry = workspaces
+            .get_mut(&workspace_id)
+            .ok_or_else(|| "workspace not found".to_string())?;
+        entry.settings.pinned_threads.remove(&thread_id);
+        let entry_snapshot = entry.clone();
+        let list: Vec<_> = workspaces.values().cloned().collect();
+        write_workspaces(storage_path, &list)?;
+        entry_snapshot
+    };
+    let connected = sessions.lock().await.contains_key(&workspace_id);
+    Ok(build_workspace_info(entry_snapshot, connected))
+}
+
+fn build_workspace_info(entry: WorkspaceEntry, connected: bool) -> WorkspaceInfo {
+    WorkspaceInfo {
+        id: entry.id,
+        name: entry.name,
+        path: entry.path,
         connected,
-        kind: entry_snapshot.kind,
-        parent_id: entry_snapshot.parent_id,
-        worktree: entry_snapshot.worktree,
-        settings: entry_snapshot.settings,
-    })
+        kind: entry.kind,
+        parent_id: entry.parent_id,
+        worktree: entry.worktree,
+        settings: entry.settings,
+    }
+}
+
+fn current_time_ms() -> Result<i64, String> {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| err.to_string())?;
+    i64::try_from(duration.as_millis()).map_err(|err| err.to_string())
 }
 
 #[cfg(test)]

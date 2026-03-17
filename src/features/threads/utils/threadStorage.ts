@@ -1,14 +1,11 @@
 import type { AccessMode, ServiceTier } from "@/types";
 
 const STORAGE_KEY_THREAD_ACTIVITY = "codexmonitor.threadLastUserActivity";
-export const STORAGE_KEY_PINNED_THREADS = "codexmonitor.pinnedThreads";
 export const STORAGE_KEY_CUSTOM_NAMES = "codexmonitor.threadCustomNames";
 export const STORAGE_KEY_THREAD_CODEX_PARAMS = "codexmonitor.threadCodexParams";
 export const STORAGE_KEY_DETACHED_REVIEW_LINKS = "codexmonitor.detachedReviewLinks";
-export const MAX_PINS_SOFT_LIMIT = 5;
 
 export type ThreadActivityMap = Record<string, Record<string, number>>;
-export type PinnedThreadsMap = Record<string, number>;
 export type CustomNamesMap = Record<string, string>;
 type DetachedReviewLinksMap = Record<string, Record<string, string>>;
 
@@ -139,43 +136,6 @@ export function saveCustomName(workspaceId: string, threadId: string, name: stri
     );
   } catch {
     // Best-effort persistence.
-  }
-}
-
-export function makePinKey(workspaceId: string, threadId: string): string {
-  return `${workspaceId}:${threadId}`;
-}
-
-export function loadPinnedThreads(): PinnedThreadsMap {
-  if (typeof window === "undefined") {
-    return {};
-  }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY_PINNED_THREADS);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw) as PinnedThreadsMap;
-    if (!parsed || typeof parsed !== "object") {
-      return {};
-    }
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
-export function savePinnedThreads(pinned: PinnedThreadsMap) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  try {
-    window.localStorage.setItem(
-      STORAGE_KEY_PINNED_THREADS,
-      JSON.stringify(pinned),
-    );
-  } catch {
-    // Best-effort persistence; ignore write failures.
   }
 }
 

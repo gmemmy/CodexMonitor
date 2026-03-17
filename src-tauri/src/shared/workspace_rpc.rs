@@ -87,6 +87,13 @@ pub(crate) struct UpdateWorkspaceSettingsRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct WorkspaceThreadPinRequest {
+    pub(crate) workspace_id: String,
+    pub(crate) thread_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct AddCloneRequest {
     pub(crate) source_workspace_id: String,
     pub(crate) copy_name: String,
