@@ -50,7 +50,6 @@ import { useMainAppWorkspaceLifecycle } from "@app/hooks/useMainAppWorkspaceLife
 import { RemoteSyncBanner } from "@app/components/RemoteSyncBanner";
 import type {
   ComposerEditorSettings,
-  RemoteThreadConnectionState,
   ServiceTier,
   WorkspaceInfo,
 } from "@/types";
@@ -89,6 +88,7 @@ import { setWorkspaceRuntimeCodexArgs } from "@services/tauri";
 import {
   ensureConnectedWorkspace,
   normalizeThreadRefreshResult,
+  resolveRemotePresence,
   resolveRemoteSyncBannerContent,
   selectLatestRemoteSyncFailure,
 } from "@app/utils/remoteSync";
@@ -604,6 +604,9 @@ export default function MainApp() {
     refreshAccountInfo,
     refreshAccountRateLimits,
   });
+  const activeThreadIsProcessing = Boolean(
+    activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
+  );
   const {
     connectionState: remoteThreadConnectionState,
     lastFailure: remoteThreadLastFailure,
@@ -618,9 +621,7 @@ export default function MainApp() {
       activeWorkspace,
       activeThreadId,
       activeThreadHasLocalSnapshot: hasLocalThreadSnapshot(activeThreadId),
-      activeThreadIsProcessing: Boolean(
-        activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
-      ),
+      activeThreadIsProcessing,
       refreshThread,
       reconnectWorkspace: connectWorkspace,
     });
@@ -1484,27 +1485,40 @@ export default function MainApp() {
     onRemoteThreadRefreshSuccess: handleRemoteThreadRefreshSuccess,
   });
 
-  const remoteConnectionStateForShell: RemoteThreadConnectionState =
-    !activeWorkspace?.connected
-      ? "disconnected"
-      : remoteWorkspaceSyncState === "stale" || remoteThreadConnectionState === "stale"
-        ? "stale"
-        : remoteThreadConnectionState;
+  const remotePresence = useMemo(
+    () =>
+      resolveRemotePresence({
+        activeWorkspaceConnected: Boolean(activeWorkspace?.connected),
+        activeThreadId,
+        activeThreadIsProcessing,
+        workspaceSyncState: remoteWorkspaceSyncState,
+        threadConnectionState: remoteThreadConnectionState,
+        reconnecting: remoteReconnectLoading,
+      }),
+    [
+      activeThreadId,
+      activeThreadIsProcessing,
+      activeWorkspace?.connected,
+      remoteReconnectLoading,
+      remoteThreadConnectionState,
+      remoteWorkspaceSyncState,
+    ],
+  );
   const remoteSyncFailure = selectLatestRemoteSyncFailure(
     remoteThreadLastFailure,
     lastRemoteSyncFailure,
   );
   const remoteSyncBannerNode = useMemo(() => {
+    const bannerPresenceState = remotePresence.state;
     if (
       appSettings.backendMode !== "remote" ||
       !activeWorkspace ||
-      (remoteConnectionStateForShell !== "stale" &&
-        remoteConnectionStateForShell !== "disconnected")
+      (bannerPresenceState !== "stale" && bannerPresenceState !== "offline")
     ) {
       return null;
     }
     const banner = resolveRemoteSyncBannerContent({
-      connectionState: remoteConnectionStateForShell,
+      presenceState: bannerPresenceState,
       activeThreadId,
       failure: remoteSyncFailure,
     });
@@ -1523,7 +1537,7 @@ export default function MainApp() {
     activeWorkspace,
     appSettings.backendMode,
     handleReconnectRemote,
-    remoteConnectionStateForShell,
+    remotePresence.state,
     remoteReconnectLoading,
     remoteSyncFailure,
   ]);
@@ -2094,8 +2108,6 @@ export default function MainApp() {
   } = useMainAppLayoutNodes(layoutSurfaces);
 
   const mainMessagesNode = showWorkspaceHome ? workspaceHomeNode : messagesNode;
-  const compactThreadConnectionState: RemoteThreadConnectionState =
-    remoteConnectionStateForShell;
   const mainAppShellProps = useMainAppShellProps({
     shell: {
       appClassName,
@@ -2160,10 +2172,9 @@ export default function MainApp() {
       desktopTopbarLeftNode,
       hasActiveWorkspace: Boolean(activeWorkspace),
       backendMode: appSettings.backendMode,
-      remoteThreadConnectionState: compactThreadConnectionState,
+      remotePresence,
       showReconnectAction:
-        compactThreadConnectionState === "stale" ||
-        compactThreadConnectionState === "disconnected",
+        remotePresence.state === "stale" || remotePresence.state === "offline",
       reconnectLoading: remoteReconnectLoading,
       onReconnect: handleReconnectRemote,
     },

@@ -1,7 +1,7 @@
 import { SidebarCollapseButton } from "@/features/layout/components/SidebarToggleControls";
 import type { ComponentProps } from "react";
 import { MainAppShell } from "@app/components/MainAppShell";
-import type { RemoteThreadConnectionState } from "@/types";
+import type { ResolvedRemotePresence } from "@app/utils/remoteSync";
 
 type UseMainAppShellPropsArgs = {
   shell: Pick<
@@ -23,7 +23,7 @@ type UseMainAppShellPropsArgs = {
     desktopTopbarLeftNode: ComponentProps<typeof MainAppShell>["appLayoutProps"]["desktopTopbarLeftNode"];
     hasActiveWorkspace: boolean;
     backendMode: "local" | "remote";
-    remoteThreadConnectionState: RemoteThreadConnectionState;
+    remotePresence: ResolvedRemotePresence;
     showReconnectAction: boolean;
     reconnectLoading: boolean;
     onReconnect: () => void;
@@ -41,33 +41,17 @@ export function useMainAppShellProps({
   const topbarActionsNode = showThreadConnectionIndicator ? (
     <div className="compact-workspace-live-controls">
       <span
-        className={`compact-workspace-live-indicator ${
-          topbar.remoteThreadConnectionState === "live"
-            ? "is-live"
-            : topbar.remoteThreadConnectionState === "polling"
-              ? "is-polling"
-              : topbar.remoteThreadConnectionState === "stale"
-                ? "is-stale"
-                : "is-disconnected"
-        }`}
-        title={
-          topbar.remoteThreadConnectionState === "live"
-            ? "Receiving live thread events"
-            : topbar.remoteThreadConnectionState === "polling"
-              ? "Connected, syncing thread state by polling"
-              : topbar.remoteThreadConnectionState === "stale"
-                ? "Remote data is stale after a failed sync"
-                : "Disconnected from backend"
-        }
+        className={`compact-workspace-live-indicator is-${topbar.remotePresence.state}`}
+        title={topbar.remotePresence.title}
+        aria-label={topbar.remotePresence.title}
       >
-        {topbar.remoteThreadConnectionState === "live"
-          ? "Live"
-          : topbar.remoteThreadConnectionState === "polling"
-            ? "Polling"
-            : topbar.remoteThreadConnectionState === "stale"
-              ? "Stale"
-              : "Disconnected"}
+        {topbar.remotePresence.label}
       </span>
+      {topbar.remotePresence.detailLabel ? (
+        <span className="compact-workspace-live-note">
+          {topbar.remotePresence.detailLabel}
+        </span>
+      ) : null}
       {topbar.showReconnectAction ? (
         <button
           type="button"

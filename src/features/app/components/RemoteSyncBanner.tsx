@@ -1,5 +1,5 @@
 type RemoteSyncBannerProps = {
-  state: "stale" | "disconnected";
+  state: "stale" | "offline";
   title: string;
   message: string;
   actionLabel?: string;

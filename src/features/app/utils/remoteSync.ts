@@ -1,7 +1,9 @@
 import type {
+  RemotePresenceState,
   RemoteSyncFailure,
   RemoteSyncFailurePhase,
   RemoteThreadConnectionState,
+  RemoteWorkspaceSyncState,
   ThreadRefreshResult,
   WorkspaceInfo,
 } from "@/types";
@@ -55,38 +57,119 @@ function isWorkspaceFailurePhase(
   return phase === "workspace_refresh" || phase === "workspace_connect";
 }
 
+export type ResolvedRemotePresence = {
+  state: RemotePresenceState;
+  label: string;
+  title: string;
+  detailLabel: string | null;
+};
+
+type ResolveRemotePresenceOptions = {
+  activeWorkspaceConnected: boolean;
+  activeThreadId?: string | null;
+  activeThreadIsProcessing?: boolean;
+  workspaceSyncState: RemoteWorkspaceSyncState;
+  threadConnectionState: RemoteThreadConnectionState;
+  reconnecting?: boolean;
+};
+
+function formatRemotePresenceLabel(state: RemotePresenceState): string {
+  switch (state) {
+    case "online":
+      return "Online";
+    case "running":
+      return "Running";
+    case "stale":
+      return "Stale";
+    case "offline":
+      return "Offline";
+  }
+}
+
+export function resolveRemotePresence({
+  activeWorkspaceConnected,
+  activeThreadId = null,
+  activeThreadIsProcessing = false,
+  workspaceSyncState,
+  threadConnectionState,
+  reconnecting = false,
+}: ResolveRemotePresenceOptions): ResolvedRemotePresence {
+  const hasActiveSession = Boolean(activeThreadId);
+  const isOffline =
+    !activeWorkspaceConnected || threadConnectionState === "disconnected";
+  const isStale =
+    workspaceSyncState === "stale" || threadConnectionState === "stale";
+  const state: RemotePresenceState = isOffline
+    ? "offline"
+    : isStale
+      ? "stale"
+      : activeThreadIsProcessing
+        ? "running"
+        : "online";
+  const isRecovering =
+    state !== "stale" &&
+    state !== "offline" &&
+    (reconnecting || (hasActiveSession && threadConnectionState === "polling"));
+
+  let title: string;
+  if (state === "offline") {
+    title = "Remote backend offline";
+  } else if (state === "stale") {
+    title = hasActiveSession
+      ? "Remote session state is stale"
+      : "Remote backend state is stale";
+  } else if (state === "running") {
+    title = isRecovering
+      ? "Remote session running, reconnecting now"
+      : "Remote session running";
+  } else {
+    title = hasActiveSession
+      ? isRecovering
+        ? "Remote session online, reconnecting now"
+        : "Remote session online"
+      : "Remote backend online";
+  }
+
+  return {
+    state,
+    label: formatRemotePresenceLabel(state),
+    title,
+    detailLabel: isRecovering ? "Reconnecting" : null,
+  };
+}
+
 type ResolveRemoteSyncBannerOptions = {
-  connectionState: RemoteThreadConnectionState;
+  presenceState: Extract<RemotePresenceState, "stale" | "offline">;
   activeThreadId?: string | null;
   failure?: RemoteSyncFailure | null;
 };
 
 export function resolveRemoteSyncBannerContent({
-  connectionState,
+  presenceState,
   activeThreadId = null,
   failure = null,
 }: ResolveRemoteSyncBannerOptions): {
-  state: "stale" | "disconnected";
+  state: "stale" | "offline";
   title: string;
   message: string;
 } {
-  const isDisconnected = connectionState === "disconnected";
+  const isOffline = presenceState === "offline";
   const showWorkspaceTitle =
-    isWorkspaceFailurePhase(failure?.phase) || (!activeThreadId && !isDisconnected);
-  const title = isDisconnected
-    ? "Remote backend disconnected"
+    isWorkspaceFailurePhase(failure?.phase) || (!activeThreadId && !isOffline);
+  const title = isOffline
+    ? "Remote backend is offline"
     : showWorkspaceTitle
-      ? "Remote workspace data is stale"
-      : "Remote thread data is stale";
+      ? "Remote backend state is stale"
+      : "Remote session state is stale";
   const trimmedFailureMessage = failure?.message?.trim() ?? "";
   const message = trimmedFailureMessage
     ? `Last sync failed: ${trimmedFailureMessage}`
-    : isDisconnected
+    : isOffline
       ? "Reconnect to restore live data from the remote backend."
-      : "The latest remote sync failed, so this view may be stale.";
+      : "The latest remote sync failed, so remote state may be stale.";
 
   return {
-    state: isDisconnected ? "disconnected" : "stale",
+    state: isOffline ? "offline" : "stale",
     title,
     message,
   };
