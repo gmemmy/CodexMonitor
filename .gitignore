@@ -33,6 +33,7 @@ CodexMonitor.zip
 .agents/
 .claude/
 .cursor/
+.symphony/
 public/assets/material-icons/
 
 # Nix
