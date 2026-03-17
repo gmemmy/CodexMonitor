@@ -36,6 +36,7 @@ const baseProps = {
   isThreadPinned: () => true,
   onSelectThread: vi.fn(),
   onShowThreadMenu: vi.fn(),
+  onShowMobileThreadMenu: vi.fn(),
 };
 
 describe("PinnedThreadList", () => {

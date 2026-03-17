@@ -43,6 +43,7 @@ describe("WorktreeSection", () => {
         onToggleWorkspaceCollapse={vi.fn()}
         onSelectThread={vi.fn()}
         onShowThreadMenu={vi.fn()}
+        onShowMobileThreadMenu={vi.fn()}
         onShowWorktreeMenu={vi.fn()}
         onToggleExpanded={vi.fn()}
         onLoadOlderThreads={vi.fn()}

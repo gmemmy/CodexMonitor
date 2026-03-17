@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceInfo } from "../../../types";
@@ -33,9 +33,14 @@ vi.mock("@tauri-apps/api/dpi", () => ({
 }));
 
 const revealItemInDir = vi.hoisted(() => vi.fn());
+const triggerHapticFeedback = vi.hoisted(() => vi.fn(async () => {}));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
   revealItemInDir: (...args: unknown[]) => revealItemInDir(...args),
+}));
+
+vi.mock("../../../services/tauri", () => ({
+  triggerHapticFeedback,
 }));
 
 vi.mock("../../../services/toasts", () => ({
@@ -98,5 +103,38 @@ describe("useSidebarMenus", () => {
     expect(revealItem).toBeDefined();
     await revealItem.action();
     expect(revealItemInDir).toHaveBeenCalledWith("/tmp/worktree-1");
+  });
+
+  it("builds a mobile thread menu with neutral and destructive actions", async () => {
+    const { result } = renderHook(() =>
+      useSidebarMenus({
+        onDeleteThread: vi.fn(),
+        onSyncThread: vi.fn(),
+        onPinThread: vi.fn(),
+        onUnpinThread: vi.fn(),
+        isThreadPinned: vi.fn(() => true),
+        onRenameThread: vi.fn(),
+        onReloadWorkspaceThreads: vi.fn(),
+        onDeleteWorkspace: vi.fn(),
+        onDeleteWorktree: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.openMobileThreadMenu("ws-1", "thread-1", "Alpha", true);
+    });
+
+    expect(triggerHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(result.current.mobileThreadMenu?.threadName).toBe("Alpha");
+    expect(
+      result.current.mobileThreadMenu?.actions
+        .filter((action) => !action.destructive)
+        .map((action) => action.label),
+    ).toEqual(["Rename", "Sync from server", "Unpin", "Copy ID"]);
+    expect(
+      result.current.mobileThreadMenu?.actions
+        .filter((action) => action.destructive)
+        .map((action) => action.label),
+    ).toEqual(["Archive"]);
   });
 });

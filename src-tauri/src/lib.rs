@@ -14,6 +14,7 @@ mod event_sink;
 mod files;
 mod git;
 mod git_utils;
+mod haptics;
 mod local_usage;
 #[cfg(desktop)]
 mod menu;
@@ -183,6 +184,7 @@ pub fn run() {
             settings::get_app_settings,
             settings::update_app_settings,
             settings::get_codex_config_path,
+            haptics::trigger_haptic_feedback,
             files::file_read,
             files::file_write,
             files::read_image_as_data_url,
